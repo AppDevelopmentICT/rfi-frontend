@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { FileSpreadsheet, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
 
 import { FileUpload } from "@/components/shared/FileUpload";
+import { useUploadDocumentMutation } from "@/hooks/useAIQueries";
+import { useRFPStore } from "@/store/useRFPStore";
 import {
   Card,
   CardContent,
@@ -16,6 +19,10 @@ import { Button } from "@/components/ui/button";
 
 export default function UploadRfpPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const router = useRouter();
+
+  const uploadMutation = useUploadDocumentMutation();
+  const setQuestions = useRFPStore((s) => s.setQuestions);
 
   const handleDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -24,7 +31,13 @@ export default function UploadRfpPage() {
   };
 
   const handleProcess = () => {
-    // Placeholder — no real API call yet
+    if (!selectedFile) return;
+    uploadMutation.mutate(selectedFile, {
+      onSuccess: (data) => {
+        setQuestions(data.questions);
+        router.push(`/rfp/${data.documentId}`);
+      },
+    });
   };
 
   const handleClear = () => {
@@ -80,11 +93,15 @@ export default function UploadRfpPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!selectedFile}
+            disabled={!selectedFile || uploadMutation.isPending}
             onClick={handleProcess}
           >
-            Process RFP
-            <ArrowRight className="ml-1 size-4" />
+            {uploadMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <ArrowRight className="ml-1 size-4" />
+            )}
+            {uploadMutation.isPending ? "Processing..." : "Process RFP"}
           </Button>
         </CardContent>
 

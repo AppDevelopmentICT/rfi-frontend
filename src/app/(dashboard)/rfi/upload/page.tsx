@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, ArrowRight } from "lucide-react";
+import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
 
 import { FileUpload } from "@/components/shared/FileUpload";
+import { useUploadDocumentMutation } from "@/hooks/useAIQueries";
+import { useRFIStore } from "@/store/useRFIStore";
 import {
   Card,
   CardContent,
@@ -19,6 +21,9 @@ export default function UploadRfiPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const router = useRouter();
 
+  const uploadMutation = useUploadDocumentMutation();
+  const setQuestions = useRFIStore((s) => s.setQuestions);
+
   const handleDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       setSelectedFile(acceptedFiles[0]);
@@ -26,7 +31,13 @@ export default function UploadRfiPage() {
   };
 
   const handleProcess = () => {
-    router.push("/rfi/rfi-mock-001");
+    if (!selectedFile) return;
+    uploadMutation.mutate(selectedFile, {
+      onSuccess: (data) => {
+        setQuestions(data.questions);
+        router.push(`/rfi/${data.documentId}`);
+      },
+    });
   };
 
   const handleClear = () => {
@@ -82,11 +93,15 @@ export default function UploadRfiPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!selectedFile}
+            disabled={!selectedFile || uploadMutation.isPending}
             onClick={handleProcess}
           >
-            Process RFI
-            <ArrowRight className="ml-1 size-4" />
+            {uploadMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <ArrowRight className="ml-1 size-4" />
+            )}
+            {uploadMutation.isPending ? "Processing..." : "Process RFI"}
           </Button>
         </CardContent>
 

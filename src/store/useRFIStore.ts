@@ -11,6 +11,7 @@ interface RFIStoreActions {
   updateAnswer: (id: string, answer: string) => void;
   setQuestionStatus: (id: string, status: QuestionStatus) => void;
   setGeneratingAll: (value: boolean) => void;
+  bulkUpdateAnswers: (results: { id: string; answer: string }[]) => void;
   resetQuestions: () => void;
 }
 
@@ -37,6 +38,19 @@ export const useRFIStore = create<RFIStore>()((set) => ({
     })),
 
   setGeneratingAll: (value) => set({ isGeneratingAll: value }),
+
+  bulkUpdateAnswers: (results) =>
+    set((state) => {
+      const resultMap = new Map(results.map((r) => [r.id, r.answer]));
+      return {
+        questions: state.questions.map((q) => {
+          const answer = resultMap.get(q.id);
+          return answer !== undefined
+            ? { ...q, answer, originalAnswer: answer, status: "completed" as QuestionStatus }
+            : q;
+        }),
+      };
+    }),
 
   resetQuestions: () => set({ questions: [], isGeneratingAll: false }),
 }));

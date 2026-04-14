@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useRef, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 import { useRFPStore } from "@/store/useRFPStore";
-import { MOCK_RFP_QUESTIONS } from "@/types/rfp";
 import { EditorHeader } from "@/components/editor/EditorHeader";
 import { QuestionCard } from "@/components/editor/QuestionCard";
+import {
+  useGenerateAllMutation,
+  useRegenerateMutation,
+} from "@/hooks/useAIQueries";
 
 interface RFPEditorProps {
   rfpId: string;
@@ -15,17 +18,15 @@ interface RFPEditorProps {
 export function RFPEditor({ rfpId }: RFPEditorProps) {
   const questions = useRFPStore((s) => s.questions);
   const isGeneratingAll = useRFPStore((s) => s.isGeneratingAll);
-  const setQuestions = useRFPStore((s) => s.setQuestions);
   const updateAnswer = useRFPStore((s) => s.updateAnswer);
   const setQuestionStatus = useRFPStore((s) => s.setQuestionStatus);
   const setGeneratingAll = useRFPStore((s) => s.setGeneratingAll);
+  const bulkUpdateAnswers = useRFPStore((s) => s.bulkUpdateAnswers);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // Initialize with mock data
-  useEffect(() => {
-    setQuestions(MOCK_RFP_QUESTIONS);
-  }, [setQuestions]);
+  const generateAllMutation = useGenerateAllMutation();
+  const regenerateMutation = useRegenerateMutation();
 
   const virtualizer = useVirtualizer({
     count: questions.length,
@@ -44,38 +45,69 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
   const handleRegenerate = useCallback(
     (id: string) => {
       setQuestionStatus(id, "generating");
-      setTimeout(() => {
-        updateAnswer(id, "This is a regenerated AI response. In production, this would be replaced by an actual AI-generated answer based on your knowledge base and the specific question context.");
-        setQuestionStatus(id, "completed");
-        toast.success("Answer regenerated");
-      }, 1500 + Math.random() * 1000);
+      regenerateMutation.mutate(
+        { documentId: rfpId, questionId: id },
+        {
+          onSuccess: (data) => {
+            updateAnswer(id, data.answer);
+            setQuestionStatus(id, "completed");
+            toast.success("Answer regenerated");
+          },
+          onError: () => {
+            setQuestionStatus(id, "idle");
+          },
+        }
+      );
     },
-    [setQuestionStatus, updateAnswer]
+    [rfpId, setQuestionStatus, updateAnswer, regenerateMutation]
   );
 
   const handleGenerateAll = useCallback(() => {
     setGeneratingAll(true);
-    let completed = 0;
-    const total = questions.length;
 
-    questions.forEach((q, index) => {
-      setTimeout(() => {
-        setQuestionStatus(q.id, "generating");
-        setTimeout(() => {
-          updateAnswer(
-            q.id,
-            "This is a freshly generated AI response. In production, the system would analyze the question against your uploaded knowledge base documents and generate a comprehensive, contextually relevant answer."
-          );
-          setQuestionStatus(q.id, "completed");
-          completed++;
-          if (completed === total) {
-            setGeneratingAll(false);
-            toast.success(`All ${total} answers generated`);
+    const targetIds = questions
+      .filter((q) => q.status === "idle")
+      .map((q) => q.id);
+
+    targetIds.forEach((id) => setQuestionStatus(id, "generating"));
+
+    generateAllMutation.mutate(
+      { documentId: rfpId, questions },
+      {
+        onSuccess: (data) => {
+          const resultIds = new Set(data.results.map((r) => r.id));
+          bulkUpdateAnswers(data.results);
+
+          // Revert questions that didn't receive a result
+          const failedIds = targetIds.filter((id) => !resultIds.has(id));
+          failedIds.forEach((id) => setQuestionStatus(id, "idle"));
+
+          setGeneratingAll(false);
+
+          if (failedIds.length === 0) {
+            toast.success(
+              `All ${data.results.length} answers generated successfully`
+            );
+          } else {
+            toast.warning(
+              `${data.results.length} answers generated. ${failedIds.length} failed — please retry them individually.`
+            );
           }
-        }, 800 + Math.random() * 1200);
-      }, index * 50);
-    });
-  }, [questions, setGeneratingAll, setQuestionStatus, updateAnswer]);
+        },
+        onError: () => {
+          targetIds.forEach((id) => setQuestionStatus(id, "idle"));
+          setGeneratingAll(false);
+        },
+      }
+    );
+  }, [
+    rfpId,
+    questions,
+    setGeneratingAll,
+    setQuestionStatus,
+    bulkUpdateAnswers,
+    generateAllMutation,
+  ]);
 
   const handleSave = useCallback(() => {
     toast.success("Changes saved successfully");
