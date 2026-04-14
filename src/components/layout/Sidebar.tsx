@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, ChevronLeft } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { Plus, ChevronLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -15,6 +16,13 @@ interface SidebarProps {
 
 export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+
+  const initials = session?.user?.name
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -86,6 +94,35 @@ export function Sidebar({ onClose }: SidebarProps) {
           </p>
         </div>
       </ScrollArea>
+
+      {/* User section */}
+      {session?.user && (
+        <>
+          <Separator />
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+              {initials}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <p className="truncate text-sm font-medium leading-tight">
+                {session.user.name}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {session.user.email}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="size-4" />
+              <span className="sr-only">Log out</span>
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
