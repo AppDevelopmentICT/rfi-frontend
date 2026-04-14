@@ -1,13 +1,8 @@
-export type QuestionStatus = "idle" | "generating" | "completed";
+export type { QuestionStatus } from "./question";
+export type { Question as RFPQuestion } from "./question";
 
-export interface RFPQuestion {
-  id: string;
-  number: number;
-  question: string;
-  answer: string;
-  originalAnswer: string;
-  status: QuestionStatus;
-}
+import type { Question as RFPQuestion } from "./question";
+import type { QuestionStatus } from "./question";
 
 const QUESTION_TEMPLATES = [
   {

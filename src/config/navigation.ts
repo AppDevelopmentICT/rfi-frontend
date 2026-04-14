@@ -1,4 +1,4 @@
-import { Database, FileUp, History, type LucideIcon } from "lucide-react";
+import { Database, FileUp, History, FileQuestion, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   title: string;
@@ -21,5 +21,10 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Upload RFP",
     href: "/upload-rfp",
     icon: FileUp,
+  },
+  {
+    title: "RFI Library",
+    href: "/rfi/upload",
+    icon: FileQuestion,
   },
 ];

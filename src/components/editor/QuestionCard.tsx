@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
-import type { RFPQuestion } from "@/types/rfp";
+import type { Question } from "@/types/question";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
 interface QuestionCardProps {
-  question: RFPQuestion;
+  question: Question;
   onAnswerChange: (id: string, answer: string) => void;
   onRegenerate: (id: string) => void;
 }
