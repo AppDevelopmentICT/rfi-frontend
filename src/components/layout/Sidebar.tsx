@@ -40,16 +40,16 @@ export function Sidebar({ onClose }: SidebarProps) {
       </div>
 
       <div className="px-3 pb-2 flex flex-col gap-2">
-        <Link href="/upload-rfp">
-          <Button variant="outline" className="w-full justify-start gap-2">
-            <Plus className="size-4" />
-            New RFP
-          </Button>
-        </Link>
         <Link href="/rfi/upload">
           <Button variant="outline" className="w-full justify-start gap-2">
             <Plus className="size-4" />
             New RFI
+          </Button>
+        </Link>
+        <Link href="/upload-rfp">
+          <Button variant="outline" className="w-full justify-start gap-2">
+            <Plus className="size-4" />
+            New RFP
           </Button>
         </Link>
       </div>
