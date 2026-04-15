@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
+import { FileText, ArrowRight, Loader2 } from "lucide-react";
 
 import { FileUpload } from "@/components/shared/FileUpload";
 import { useUploadDocumentMutation } from "@/hooks/useAIQueries";
@@ -50,7 +50,7 @@ export default function UploadRfpPage() {
         <CardHeader>
           <CardTitle>Upload RFP Document</CardTitle>
           <CardDescription>
-            Upload an RFP spreadsheet to generate automated responses based on your knowledge base. Supported formats: XLSX, XLS, and CSV.
+            Upload an RFP document to generate automated responses based on your knowledge base. Supported formats: DOCX, DOC, and PDF.
           </CardDescription>
         </CardHeader>
 
@@ -58,19 +58,19 @@ export default function UploadRfpPage() {
           <FileUpload
             onDrop={handleDrop}
             accept={{
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-              "application/vnd.ms-excel": [".xls"],
-              "text/csv": [".csv"],
+              "application/pdf": [".pdf"],
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+              "application/msword": [".doc"],
             }}
             title="Drag & drop your RFP file here, or click to browse"
-            description="XLSX, XLS, or CSV format"
+            description="DOCX, DOC, or PDF format"
           />
 
           {selectedFile && (
             <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
               <div className="flex items-center gap-3">
                 <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-                  <FileSpreadsheet className="size-4 text-primary" />
+                  <FileText className="size-4 text-primary" />
                 </div>
                 <div>
                   <p className="text-sm font-medium">{selectedFile.name}</p>
