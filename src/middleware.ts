@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 
 export default auth((req) => {
   const isLoggedIn = !!req.auth
-  const isAuthPage = req.nextUrl.pathname.startsWith("/login")
+  const isAuthPage = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/register")
   const isApiRoute = req.nextUrl.pathname.startsWith("/api")
 
   // Logged-in users on the login page → redirect to dashboard
@@ -21,5 +21,5 @@ export default auth((req) => {
 })
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|assets).*)"],
 }
