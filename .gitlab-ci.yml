@@ -99,6 +99,9 @@ deploy:
         --restart unless-stopped \
         --add-host=host.docker.internal:host-gateway \
         --publish 0.0.0.0:2200:3000 \
+        -e AUTH_SECRET="$AUTH_SECRET" \
+        -e NEXTAUTH_URL='http://192.168.150.200:2200' \
+        -e AUTH_URL='http://192.168.150.200:2200' \
         $IMAGE_NAME:production-$CI_COMMIT_SHORT_SHA"
   only:
     - main
