@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN rm -f package-lock.json && npm install
 
 COPY . .
 
