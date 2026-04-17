@@ -1,0 +1,104 @@
+stages:
+  - install
+  - test
+  - build
+  - deploy
+
+default:
+  image: node:20-alpine
+
+# ============================================================================
+# Install Dependencies
+# ============================================================================
+install:dependencies:
+  stage: install
+  script:
+    - npm ci
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-npm
+    paths:
+      - node_modules/
+      - ~/.npm
+  only:
+    changes:
+      - package-lock.json
+      - package.json
+      - .gitlab-ci.yml
+
+test:
+  stage: test
+  script:
+    - echo "No tests specified. Skipping."
+  dependencies:
+    - install:dependencies
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# ============================================================================
+# Docker Build
+# ============================================================================
+docker:build:
+  stage: build
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - until docker info; do sleep 1; done
+    - echo "$NEXUS_PASSWORD" | docker login -u "$NEXUS_USERNAME" --password-stdin 192.168.150.203:1234
+  script:
+    - IMAGE_PATH="192.168.150.203:1234/rfi/frontend"
+    - TAG="production-$CI_COMMIT_SHORT_SHA"
+    - NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://192.168.150.200:2250}"
+
+    - echo "Building Frontend Docker Image..."
+    - docker build --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" -t $IMAGE_PATH:$TAG .
+    - docker push $IMAGE_PATH:$TAG
+  only:
+    - main
+
+# ============================================================================
+# Deploy to Production (VM 200)
+# ============================================================================
+deploy:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - docker:build
+  variables:
+    SSH_HOST: "192.168.150.200"
+    IMAGE_NAME: "192.168.150.203:1234/rfi/frontend"
+  before_script:
+    - apk add --no-cache openssh-client docker-cli
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+  script:
+    - echo "Deploying Frontend to VM..."
+    - |
+      if [ -z "$DEPLOY_USER" ]; then
+        echo "ERROR: DEPLOY_USER is not set! Please add it to CI/CD Variables."
+        exit 1
+      fi
+
+    - ssh $DEPLOY_USER@$SSH_HOST "echo '$NEXUS_PASSWORD' | docker login -u '$NEXUS_USERNAME' --password-stdin 192.168.150.203:1234"
+    - ssh $DEPLOY_USER@$SSH_HOST "docker pull $IMAGE_NAME:production-$CI_COMMIT_SHORT_SHA"
+
+    - ssh $DEPLOY_USER@$SSH_HOST "docker stop rfi-frontend || true"
+    - ssh $DEPLOY_USER@$SSH_HOST "docker rm rfi-frontend || true"
+    - |
+      ssh $DEPLOY_USER@$SSH_HOST "docker run -d \
+        --name rfi-frontend \
+        --restart unless-stopped \
+        --add-host=host.docker.internal:host-gateway \
+        --publish 0.0.0.0:2200:3000 \
+        $IMAGE_NAME:production-$CI_COMMIT_SHORT_SHA"
+  only:
+    - main
