@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
 
 import { FileUpload } from "@/components/shared/FileUpload";
-import { useUploadDocumentMutation } from "@/hooks/useAIQueries";
-import { useRFIStore } from "@/store/useRFIStore";
+import { useReadExcelMutation } from "@/hooks/useRFIQueries";
+import { useExcelStore } from "@/store/useExcelStore";
 import {
   Card,
   CardContent,
@@ -21,8 +21,9 @@ export default function UploadRfiPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const router = useRouter();
 
-  const uploadMutation = useUploadDocumentMutation();
-  const setQuestions = useRFIStore((s) => s.setQuestions);
+  const readExcelMutation = useReadExcelMutation();
+  const setFile = useExcelStore((s) => s.setFile);
+  const setExcelData = useExcelStore((s) => s.setExcelData);
 
   const handleDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -32,10 +33,11 @@ export default function UploadRfiPage() {
 
   const handleProcess = () => {
     if (!selectedFile) return;
-    uploadMutation.mutate(selectedFile, {
+    readExcelMutation.mutate(selectedFile, {
       onSuccess: (data) => {
-        setQuestions(data.questions);
-        router.push(`/rfi/${data.documentId}`);
+        setFile(selectedFile);
+        setExcelData(data);
+        router.push("/rfi/viewer");
       },
     });
   };
@@ -50,7 +52,7 @@ export default function UploadRfiPage() {
         <CardHeader>
           <CardTitle>Upload RFI Document</CardTitle>
           <CardDescription>
-            Upload your RFI Excel file to start generating AI responses. Supported formats: XLSX, XLS, and CSV.
+            Upload your RFI Excel file to start generating AI responses. Supported formats: XLSX and XLS.
           </CardDescription>
         </CardHeader>
 
@@ -60,10 +62,9 @@ export default function UploadRfiPage() {
             accept={{
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
               "application/vnd.ms-excel": [".xls"],
-              "text/csv": [".csv"],
             }}
             title="Drag & drop your RFI file here, or click to browse"
-            description="XLSX, XLS, or CSV format"
+            description="XLSX or XLS format"
           />
 
           {selectedFile && (
@@ -93,21 +94,21 @@ export default function UploadRfiPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!selectedFile || uploadMutation.isPending}
+            disabled={!selectedFile || readExcelMutation.isPending}
             onClick={handleProcess}
           >
-            {uploadMutation.isPending ? (
+            {readExcelMutation.isPending ? (
               <Loader2 className="animate-spin" />
             ) : (
               <ArrowRight className="ml-1 size-4" />
             )}
-            {uploadMutation.isPending ? "Processing..." : "Process RFI"}
+            {readExcelMutation.isPending ? "Reading Excel..." : "Process RFI"}
           </Button>
         </CardContent>
 
         <CardFooter>
           <p className="text-xs text-muted-foreground">
-            Processing typically takes 1–3 minutes depending on the document size and complexity.
+            Processing typically takes a few seconds depending on the file size.
           </p>
         </CardFooter>
       </Card>
