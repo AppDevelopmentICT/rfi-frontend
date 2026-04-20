@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
 
 import { FileUpload } from "@/components/shared/FileUpload";
-import { useReadExcelMutation } from "@/hooks/useRFIQueries";
-import { useExcelStore } from "@/store/useExcelStore";
+import { useUploadDocumentMutation } from "@/hooks/useAIQueries";
+import { useRFIStore } from "@/store/useRFIStore";
 import {
   Card,
   CardContent,
@@ -21,9 +21,9 @@ export default function UploadRfiPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const router = useRouter();
 
-  const readExcelMutation = useReadExcelMutation();
-  const setFile = useExcelStore((s) => s.setFile);
-  const setExcelData = useExcelStore((s) => s.setExcelData);
+  const uploadMutation = useUploadDocumentMutation();
+  const setDocumentInfo = useRFIStore((s) => s.setDocumentInfo);
+  const setQuestions = useRFIStore((s) => s.setQuestions);
 
   const handleDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -33,10 +33,10 @@ export default function UploadRfiPage() {
 
   const handleProcess = () => {
     if (!selectedFile) return;
-    readExcelMutation.mutate(selectedFile, {
+    uploadMutation.mutate(selectedFile, {
       onSuccess: (data) => {
-        setFile(selectedFile);
-        setExcelData(data);
+        setDocumentInfo(data.documentId, selectedFile);
+        setQuestions(data.questions);
         router.push("/rfi/viewer");
       },
     });
@@ -94,15 +94,15 @@ export default function UploadRfiPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!selectedFile || readExcelMutation.isPending}
+            disabled={!selectedFile || uploadMutation.isPending}
             onClick={handleProcess}
           >
-            {readExcelMutation.isPending ? (
+            {uploadMutation.isPending ? (
               <Loader2 className="animate-spin" />
             ) : (
               <ArrowRight className="ml-1 size-4" />
             )}
-            {readExcelMutation.isPending ? "Reading Excel..." : "Process RFI"}
+            {uploadMutation.isPending ? "Processing..." : "Process RFI"}
           </Button>
         </CardContent>
 

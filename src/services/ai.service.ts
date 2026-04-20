@@ -81,7 +81,7 @@ export async function uploadDocument(
   formData.append("file", file);
 
   const { data } = await apiClient.post<UploadDocumentResponse>(
-    "/api/v1/document/upload",
+    "/v1/document/upload",
     formData,
     { headers: { "Content-Type": "multipart/form-data" } }
   );
@@ -102,7 +102,7 @@ export async function generateAll(
   }
 
   const { data } = await apiClient.post<GenerateAllResponse>(
-    "/api/v1/ai/generate-all",
+    "/v1/ai/generate-all",
     req
   );
   return data;
@@ -120,7 +120,7 @@ export async function regenerate(
   }
 
   const { data } = await apiClient.post<RegenerateResponse>(
-    "/api/v1/ai/regenerate",
+    "/v1/ai/regenerate",
     req
   );
   return data;

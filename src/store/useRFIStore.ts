@@ -2,24 +2,38 @@ import { create } from "zustand";
 import type { RFIQuestion, QuestionStatus } from "@/types/rfi";
 
 interface RFIStoreState {
+  documentId: string;
+  file: File | null;
+  fileName: string;
   questions: RFIQuestion[];
   isGeneratingAll: boolean;
 }
 
 interface RFIStoreActions {
+  setDocumentInfo: (documentId: string, file: File) => void;
   setQuestions: (questions: RFIQuestion[]) => void;
   updateAnswer: (id: string, answer: string) => void;
   setQuestionStatus: (id: string, status: QuestionStatus) => void;
   setGeneratingAll: (value: boolean) => void;
   bulkUpdateAnswers: (results: { id: string; answer: string }[]) => void;
-  resetQuestions: () => void;
+  reset: () => void;
 }
 
 type RFIStore = RFIStoreState & RFIStoreActions;
 
-export const useRFIStore = create<RFIStore>()((set) => ({
+const initialState: RFIStoreState = {
+  documentId: "",
+  file: null,
+  fileName: "",
   questions: [],
   isGeneratingAll: false,
+};
+
+export const useRFIStore = create<RFIStore>()((set) => ({
+  ...initialState,
+
+  setDocumentInfo: (documentId, file) =>
+    set({ documentId, file, fileName: file.name }),
 
   setQuestions: (questions) => set({ questions }),
 
@@ -52,5 +66,5 @@ export const useRFIStore = create<RFIStore>()((set) => ({
       };
     }),
 
-  resetQuestions: () => set({ questions: [], isGeneratingAll: false }),
+  reset: () => set(initialState),
 }));
