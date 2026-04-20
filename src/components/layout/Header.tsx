@@ -1,24 +1,54 @@
 "use client";
 
-import Link from "next/link";
-import { Menu, FileText } from "lucide-react";
+import { useState } from "react";
+import { Menu, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleClear = () => {
+    setSearchQuery("");
+  };
+
   return (
-    <header className="flex h-14 items-center gap-3 border-b bg-background px-4 lg:hidden">
-      <Button variant="ghost" size="icon-sm" onClick={onMenuClick}>
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-4 border-b border-border/40 bg-background/80 px-4 backdrop-blur-md">
+      <Button variant="ghost" size="icon-sm" onClick={onMenuClick} className="lg:hidden">
         <Menu className="size-4" />
         <span className="sr-only">Toggle sidebar</span>
       </Button>
-      <Link href="/" className="flex items-center gap-2">
-        <FileText className="size-5 text-primary" />
-        <span className="text-sm font-semibold">RFI / RFP Automation</span>
-      </Link>
+
+      <div className="flex flex-1 items-center justify-start">
+        <form className="relative w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
+          <Search className="absolute left-3 top-1/2 mt-[-8px] size-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search RFI, RFP, or Documents..."
+            className="w-full bg-background/50 pl-9 pr-9 md:w-[300px] lg:w-[400px]"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="absolute right-3 top-1/2 mt-[-8px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="size-4" />
+              <span className="sr-only">Clear search</span>
+            </button>
+          )}
+        </form>
+      </div>
+
+      <div className="ml-auto flex items-center gap-2">
+        {/* Placeholder for future top-right actions */}
+      </div>
     </header>
   );
 }

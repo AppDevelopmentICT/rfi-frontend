@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import Link from "next/link";
-import { FileText } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
@@ -11,33 +9,34 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-[280px] shrink-0 border-r lg:block">
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* 
+         Desktop Dual-Pane Sidebar 
+         We'll let Sidebar component handle the icons vs text split internally 
+         to keep MainLayout clean.
+      */}
+      <aside className="hidden shrink-0 border-r lg:block">
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </aside>
 
       {/* Mobile sidebar (Sheet overlay) */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-[280px] p-0">
+        <SheetContent side="left" className="w-[300px] p-0">
           <SheetTitle className="sr-only">Navigation sidebar</SheetTitle>
-          <Sidebar onClose={() => setSidebarOpen(false)} />
+          <Sidebar onClose={() => setSidebarOpen(false)} isMobile />
         </SheetContent>
       </Sheet>
 
-      {/* Main area */}
+      {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Mobile Header only, Desktop gets integrated breadcrumbs inside main */}
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
-        {/* Desktop header bar */}
-        <div className="hidden items-center gap-2 border-b px-6 py-3 lg:flex">
-          <Link href="/" className="flex items-center gap-2">
-            <FileText className="size-5 text-primary" />
-            <span className="text-sm font-semibold">RFI / RFP Automation</span>
-          </Link>
-        </div>
-
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="mx-auto flex h-full w-full max-w-7xl flex-col bg-background p-4 md:p-8">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
