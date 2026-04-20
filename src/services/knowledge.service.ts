@@ -25,7 +25,7 @@ export async function ingestKnowledgeDocument(
   formData.append("file", file);
 
   const { data } = await apiClient.post<IngestDocumentResponse>(
-    "/v1/knowledge/ingest",
+    "/api/v1/knowledge/ingest",
     formData,
     { headers: { "Content-Type": "multipart/form-data" } }
   );

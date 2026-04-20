@@ -2,21 +2,21 @@ import { apiClient } from "@/lib/axios";
 import type { ExcelData } from "@/types/excel";
 
 // ---------------------------------------------------------------------------
-// POST /rfi/read — upload Excel, get parsed sheets as JSON
+// POST /api/v1/rfi/read — upload Excel, get parsed sheets as JSON
 // ---------------------------------------------------------------------------
 
 export async function readExcel(file: File): Promise<ExcelData> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const { data } = await apiClient.post<ExcelData>("/rfi/read", formData, {
+  const { data } = await apiClient.post<ExcelData>("/api/v1/rfi/read", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
 }
 
 // ---------------------------------------------------------------------------
-// POST /rfi/auto-fill — upload Excel, get filled Excel back as blob
+// POST /api/v1/rfi/auto-fill — upload Excel, get filled Excel back as blob
 // ---------------------------------------------------------------------------
 
 export interface AutoFillOptions {
@@ -38,7 +38,7 @@ export async function autoFillExcel(
   if (options?.fillColumns)
     formData.append("fill_columns", options.fillColumns);
 
-  const { data } = await apiClient.post("/rfi/auto-fill", formData, {
+  const { data } = await apiClient.post("/api/v1/rfi/auto-fill", formData, {
     headers: { "Content-Type": "multipart/form-data" },
     responseType: "blob",
   });
