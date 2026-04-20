@@ -7,6 +7,7 @@ import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
 import { FileUpload } from "@/components/shared/FileUpload";
 import { ColumnPickerModal } from "@/components/shared/ColumnPickerModal";
 import { useReadExcelMutation } from "@/hooks/useRFIQueries";
+import { useSaveQuestionsMutation } from "@/hooks/useAIQueries";
 import { useExcelStore } from "@/store/useExcelStore";
 import { useRFIStore } from "@/store/useRFIStore";
 import type { Question } from "@/types/question";
@@ -28,6 +29,7 @@ export default function UploadRfiPage() {
   const router = useRouter();
 
   const readExcelMutation = useReadExcelMutation();
+  const saveQuestionsMutation = useSaveQuestionsMutation();
   const setExcelData = useExcelStore((s) => s.setExcelData);
   const setDocumentInfo = useRFIStore((s) => s.setDocumentInfo);
   const setQuestions = useRFIStore((s) => s.setQuestions);
@@ -44,7 +46,6 @@ export default function UploadRfiPage() {
       onSuccess: (data) => {
         setExcelData(data);
         setLocalExcelData(data);
-        setDocumentInfo(crypto.randomUUID(), selectedFile);
         setPickerOpen(true);
       },
     });
@@ -53,7 +54,12 @@ export default function UploadRfiPage() {
   const handlePickerConfirm = (questions: Question[]) => {
     setQuestions(questions);
     setPickerOpen(false);
-    router.push("/rfi/viewer");
+    saveQuestionsMutation.mutate({ questions }, {
+      onSuccess: (data) => {
+        if (selectedFile) setDocumentInfo(data.documentId, selectedFile);
+        router.push("/rfi/viewer");
+      },
+    });
   };
 
   const handlePickerClose = () => {

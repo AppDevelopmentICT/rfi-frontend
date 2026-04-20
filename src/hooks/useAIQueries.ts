@@ -4,11 +4,14 @@ import {
   uploadDocument,
   generateAll,
   regenerate,
+  saveQuestions,
   type UploadDocumentResponse,
   type GenerateAllRequest,
   type GenerateAllResponse,
   type RegenerateRequest,
   type RegenerateResponse,
+  type SaveQuestionsRequest,
+  type SaveQuestionsResponse,
 } from "@/services/ai.service";
 
 export function useUploadDocumentMutation() {
@@ -34,6 +37,15 @@ export function useRegenerateMutation() {
     mutationFn: regenerate,
     onError: () => {
       toast.error("Failed to regenerate answer.");
+    },
+  });
+}
+
+export function useSaveQuestionsMutation() {
+  return useMutation<SaveQuestionsResponse, Error, SaveQuestionsRequest>({
+    mutationFn: saveQuestions,
+    onError: () => {
+      toast.error("Failed to save questions.");
     },
   });
 }

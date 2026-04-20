@@ -30,6 +30,14 @@ export interface RegenerateResponse {
   answer: string;
 }
 
+export interface SaveQuestionsRequest {
+  questions: Question[];
+}
+
+export interface SaveQuestionsResponse {
+  documentId: string;
+}
+
 // ---------------------------------------------------------------------------
 // Mock helpers
 // ---------------------------------------------------------------------------
@@ -121,6 +129,16 @@ export async function regenerate(
 
   const { data } = await apiClient.post<RegenerateResponse>(
     "/v1/ai/regenerate",
+    req
+  );
+  return data;
+}
+
+export async function saveQuestions(
+  req: SaveQuestionsRequest
+): Promise<SaveQuestionsResponse> {
+  const { data } = await apiClient.post<SaveQuestionsResponse>(
+    "/v1/rfi/save",
     req
   );
   return data;
