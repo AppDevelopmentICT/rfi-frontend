@@ -3,5 +3,5 @@ export interface IngestedFile {
   name: string;
   date: string;
   size: string;
-  type: "pdf" | "docx" | "txt";
+  type: "pdf" | "docx" | "txt" | "md";
 }

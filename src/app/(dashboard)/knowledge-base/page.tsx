@@ -5,6 +5,7 @@ import { FileText, FileIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { FileUpload } from "@/components/shared/FileUpload";
+import { ingestKnowledgeDocument } from "@/services/knowledge.service";
 import {
   Table,
   TableBody,
@@ -17,46 +18,56 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { IngestedFile } from "@/types/knowledge-base";
 
-const MOCK_FILES: IngestedFile[] = [
-  { id: "1", name: "Company_Profile.pdf", date: "2026-04-14", size: "2.4 MB", type: "pdf" },
-  { id: "2", name: "Product_Specifications.docx", date: "2026-04-13", size: "1.8 MB", type: "docx" },
-  { id: "3", name: "Pricing_Guide.txt", date: "2026-04-12", size: "456 KB", type: "txt" },
-  { id: "4", name: "Terms_Conditions.pdf", date: "2026-04-11", size: "3.1 MB", type: "pdf" },
-  { id: "5", name: "Technical_Documentation.pdf", date: "2026-04-10", size: "5.7 MB", type: "pdf" },
-];
-
 const FILE_TYPE_COLORS: Record<IngestedFile["type"], string> = {
   pdf: "destructive",
   docx: "secondary",
   txt: "outline",
+  md: "default",
 };
 
 export default function KnowledgeBasePage() {
-  const [files, setFiles] = useState<IngestedFile[]>(MOCK_FILES);
+  const [files, setFiles] = useState<IngestedFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleDrop = (acceptedFiles: File[]) => {
+  const handleDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
-    const newFiles: IngestedFile[] = acceptedFiles.map((file, index) => {
-      const extension = file.name.split(".").pop()?.toLowerCase() ?? "txt";
-      return {
-        id: `${Date.now()}-${index}`,
-        name: file.name,
-        date: new Date().toISOString().split("T")[0],
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        type: (["pdf", "docx", "txt"].includes(extension)
-          ? extension
-          : "txt") as IngestedFile["type"],
-      };
-    });
+    setIsUploading(true);
+    let successCount = 0;
 
-    setFiles((prev) => [...newFiles, ...prev]);
-    toast.success(`${newFiles.length} file(s) uploaded successfully`);
+    for (const file of acceptedFiles) {
+      try {
+        const data = await ingestKnowledgeDocument(file);
+        
+        const extension = file.name.split(".").pop()?.toLowerCase() ?? "txt";
+        const newFile: IngestedFile = {
+          id: data.document_id.toString(),
+          name: file.name,
+          date: new Date().toISOString().split("T")[0],
+          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+          type: (["pdf", "docx", "txt", "md"].includes(extension)
+            ? extension
+            : "txt") as IngestedFile["type"],
+        };
+
+        setFiles((prev) => [newFile, ...prev]);
+        successCount++;
+        toast.success(`Successfully vectorized ${file.name} into ${data.chunks_processed} chunks`);
+      } catch (error: any) {
+        toast.error(`Failed to ingest ${file.name}: ${error.message || "Unknown Error"}`);
+      }
+    }
+
+    if (successCount === acceptedFiles.length && successCount > 1) {
+       toast.success(`All ${successCount} files processed successfully`);
+    }
+    
+    setIsUploading(false);
   };
 
   const handleDelete = (id: string) => {
     setFiles((prev) => prev.filter((file) => file.id !== id));
-    toast.success("File removed from knowledge base");
+    toast.success("File removed from knowledge base view");
   };
 
   return (
@@ -65,7 +76,7 @@ export default function KnowledgeBasePage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Knowledge Base</h1>
         <p className="text-sm text-muted-foreground">
-          Upload and manage reference documents that power your RFP responses. Supported formats: PDF, DOCX, and TXT.
+          Upload and manage reference documents that power your RFP responses. Supported formats: PDF, DOCX, TXT, and MD.
         </p>
       </div>
 
@@ -78,10 +89,17 @@ export default function KnowledgeBasePage() {
             "application/pdf": [".pdf"],
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
             "text/plain": [".txt"],
+            "text/markdown": [".md"],
           }}
           title="Drag & drop files here, or click to browse"
-          description="PDF, DOCX, or TXT — up to 10 MB per file"
+          description="PDF, DOCX, TXT, or MD — up to 10 MB per file"
         />
+        {isUploading && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-blue-500 animate-pulse font-medium">
+                <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
+                Vectorizing documents...
+            </div>
+        )}
       </section>
 
       {/* File Table Section */}
