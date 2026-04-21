@@ -6,10 +6,11 @@ import {
   FileIcon,
   Trash2,
   RefreshCw,
-  CloudDownload,
   Check,
   AlertCircle,
   Database,
+  Server,
+  ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -156,23 +157,48 @@ export default function KnowledgeBasePage() {
           </p>
         </div>
 
-        <Button
-          id="sync-minio-btn"
-          onClick={handleSync}
-          disabled={isSyncing}
-          variant="outline"
-          className="group relative gap-2 overflow-hidden border-blue-500/30 text-blue-600 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-400/30 dark:text-blue-400 dark:hover:border-blue-400 dark:hover:bg-blue-950 dark:hover:text-blue-300 transition-all duration-300"
-        >
-          <RefreshCw
-            className={`size-4 transition-transform duration-500 ${
-              isSyncing ? "animate-spin" : "group-hover:rotate-90"
-            }`}
-          />
-          {isSyncing ? "Syncing..." : "Sync from MinIO"}
-          {!isSyncing && (
-            <CloudDownload className="size-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
-          )}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            id="sync-minio-btn"
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="group relative gap-2 rounded-full bg-muted/80 font-medium text-muted-foreground shadow-none transition-all duration-300 hover:bg-muted hover:text-foreground hover:shadow-sm active:scale-[0.97] disabled:opacity-60 dark:bg-muted/40 dark:hover:bg-muted/60 border border-border/50 hover:border-border"
+          >
+            <span className="relative flex size-4 items-center justify-center">
+              <Server
+                className={`size-3.5 absolute transition-all duration-300 ${
+                  isSyncing
+                    ? "opacity-0 scale-50 rotate-90"
+                    : "opacity-100 scale-100 rotate-0"
+                }`}
+              />
+              <RefreshCw
+                className={`size-3.5 absolute transition-all duration-300 ${
+                  isSyncing
+                    ? "opacity-100 scale-100 animate-spin"
+                    : "opacity-0 scale-50 -rotate-90"
+                }`}
+              />
+            </span>
+            <span className="transition-all duration-200">
+              {isSyncing ? "Syncing\u2026" : "Sync from MinIO"}
+            </span>
+            {!isSyncing && (
+              <ArrowDown className="size-3 opacity-40 transition-all duration-300 group-hover:opacity-70 group-hover:translate-y-0.5" />
+            )}
+            {isSyncing && (
+              <span className="flex gap-0.5">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="size-0.5 rounded-full bg-current animate-pulse"
+                    style={{ animationDelay: `${i * 200}ms` }}
+                  />
+                ))}
+              </span>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Sync result banner */}
@@ -229,8 +255,8 @@ export default function KnowledgeBasePage() {
           description="PDF, DOCX, TXT, or MD — up to 10 MB per file"
         />
         {isUploading && (
-          <div className="flex items-center gap-2 mt-2 text-sm text-blue-500 animate-pulse font-medium">
-            <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
+          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground animate-pulse font-medium">
+            <RefreshCw className="size-3.5 animate-spin" />
             Vectorizing documents...
           </div>
         )}
@@ -303,7 +329,7 @@ export default function KnowledgeBasePage() {
                         {doc.source === "minio" ? (
                           <Database className="size-3" />
                         ) : (
-                          <CloudDownload className="size-3" />
+                          <FileText className="size-3" />
                         )}
                         {doc.source === "minio" ? "MinIO" : "Upload"}
                       </Badge>
