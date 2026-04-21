@@ -44,6 +44,8 @@ export default function KnowledgeBasePage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<KBDocument | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load documents from backend on mount
   const loadDocuments = useCallback(async () => {
@@ -127,14 +129,18 @@ export default function KnowledgeBasePage() {
 
   // Handle document deletion
   const handleDelete = async (doc: KBDocument) => {
+    setIsDeleting(true);
     try {
       await deleteKnowledgeDocument(doc.id);
       setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+      setPendingDelete(null);
       toast.success(`Deleted "${doc.filename}" and its vector chunks`);
     } catch (error: any) {
       toast.error(
         `Failed to delete ${doc.filename}: ${error.message || "Unknown error"}`
       );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -316,15 +322,42 @@ export default function KnowledgeBasePage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right pr-4">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleDelete(doc)}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                        <span className="sr-only">Delete {doc.filename}</span>
-                      </Button>
+                      {pendingDelete?.id === doc.id ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(doc)}
+                            disabled={isDeleting}
+                            className="h-7 text-xs gap-1.5"
+                          >
+                            {isDeleting && (
+                              <span className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            )}
+                            {isDeleting ? "Deleting..." : "Confirm"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPendingDelete(null)}
+                            disabled={isDeleting}
+                            className="h-7 text-xs"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setPendingDelete(doc)}
+                          disabled={isDeleting}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="size-3.5" />
+                          <span className="sr-only">Delete {doc.filename}</span>
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

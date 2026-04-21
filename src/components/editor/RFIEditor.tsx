@@ -110,7 +110,7 @@ export function RFIEditor({ rfiId }: RFIEditorProps) {
   ]);
 
   const handleSave = useCallback(() => {
-    toast.success("Changes saved successfully");
+    toast.success("This feature is not available yet.");
   }, []);
 
   const handleExport = useCallback(() => {
