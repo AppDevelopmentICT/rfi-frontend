@@ -71,7 +71,9 @@ export async function syncKnowledgeBase(): Promise<SyncResult> {
 }
 
 export async function listKnowledgeDocuments(): Promise<ListDocumentsResponse> {
-  const { data } = await apiClient.get<ListDocumentsResponse>("/v1/knowledge/documents");
+  const { data } = await apiClient.get<ListDocumentsResponse>("/v1/knowledge/documents", {
+    timeout: 15_000,
+  });
   return data;
 }
 

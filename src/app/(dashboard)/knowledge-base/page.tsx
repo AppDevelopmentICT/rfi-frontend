@@ -43,21 +43,21 @@ export default function KnowledgeBasePage() {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
   const [pendingDelete, setPendingDelete] = useState<KBDocument | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load documents from backend on mount
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (silent = false) => {
+    if (!silent) setIsLoadingDocs(true);
     try {
       const response = await listKnowledgeDocuments();
       setDocuments(response.documents);
     } catch (error: any) {
       console.error("Failed to load documents:", error);
-      toast.error("Failed to load knowledge base documents");
+      if (!silent) toast.error("Failed to load knowledge base documents");
     } finally {
-      setIsLoading(false);
+      setIsLoadingDocs(false);
     }
   }, []);
 
@@ -65,42 +65,57 @@ export default function KnowledgeBasePage() {
     loadDocuments();
   }, [loadDocuments]);
 
-  // Handle file upload (manual ingest)
   const handleDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
     setIsUploading(true);
-    let successCount = 0;
 
-    for (const file of acceptedFiles) {
+    const pendingIds = acceptedFiles.map((_, i) => -(Date.now() + i));
+    setDocuments((prev) => [
+      ...acceptedFiles.map((file, i) => ({
+        id: pendingIds[i],
+        filename: file.name,
+        status: "processing" as const,
+        source: "upload" as const,
+        minio_key: null,
+      })),
+      ...prev,
+    ]);
+
+    for (let idx = 0; idx < acceptedFiles.length; idx++) {
+      const file = acceptedFiles[idx];
       try {
         const result = await ingestKnowledgeDocument(file);
-        successCount++;
         toast.success(`Vectorized ${file.name} successfully`);
 
-        // if (result.docling_markdown) {
-        //   const baseName = file.name.replace(/\.[^.]+$/, "");
-        //   const blob = new Blob([result.docling_markdown], { type: "text/markdown" });
-        //   const url = URL.createObjectURL(blob);
-        //   const a = document.createElement("a");
-        //   a.href = url;
-        //   a.download = `${baseName}_docling.md`;
-        //   document.body.appendChild(a);
-        //   a.click();
-        //   document.body.removeChild(a);
-        //   URL.revokeObjectURL(url);
-        // }
+        setDocuments((prev) =>
+          prev.map((doc) =>
+            doc.id === pendingIds[idx]
+              ? {
+                  id: result.document_id,
+                  filename: file.name,
+                  status: result.status === "success" ? "completed" : result.status,
+                  source: "upload" as const,
+                  minio_key: null,
+                }
+              : doc
+          )
+        );
       } catch (error: any) {
         toast.error(
           `Failed to ingest ${file.name}: ${error.message || "Unknown Error"}`
         );
+        setDocuments((prev) =>
+          prev.map((doc) =>
+            doc.id === pendingIds[idx]
+              ? { ...doc, status: "failed" }
+              : doc
+          )
+        );
       }
     }
 
-    if (successCount > 0) {
-      await loadDocuments(); // Refresh list
-    }
-
+    loadDocuments(true);
     setIsUploading(false);
   };
 
@@ -132,8 +147,7 @@ export default function KnowledgeBasePage() {
         toast.success(`Sync complete: ${message}`);
       }
 
-      // Refresh document list
-      await loadDocuments();
+      await loadDocuments(true);
     } catch (error: any) {
       toast.error(`Sync failed: ${error.message || "Unknown error"}`);
     } finally {
@@ -286,7 +300,7 @@ export default function KnowledgeBasePage() {
           </span>
         </div>
 
-        {isLoading ? (
+        {isLoadingDocs ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/20 py-12 text-center">
             <RefreshCw className="mb-3 size-6 text-muted-foreground/40 animate-spin" />
             <p className="text-sm text-muted-foreground">
