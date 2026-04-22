@@ -74,9 +74,22 @@ export default function KnowledgeBasePage() {
 
     for (const file of acceptedFiles) {
       try {
-        await ingestKnowledgeDocument(file);
+        const result = await ingestKnowledgeDocument(file);
         successCount++;
         toast.success(`Vectorized ${file.name} successfully`);
+
+        // if (result.docling_markdown) {
+        //   const baseName = file.name.replace(/\.[^.]+$/, "");
+        //   const blob = new Blob([result.docling_markdown], { type: "text/markdown" });
+        //   const url = URL.createObjectURL(blob);
+        //   const a = document.createElement("a");
+        //   a.href = url;
+        //   a.download = `${baseName}_docling.md`;
+        //   document.body.appendChild(a);
+        //   a.click();
+        //   document.body.removeChild(a);
+        //   URL.revokeObjectURL(url);
+        // }
       } catch (error: any) {
         toast.error(
           `Failed to ingest ${file.name}: ${error.message || "Unknown Error"}`

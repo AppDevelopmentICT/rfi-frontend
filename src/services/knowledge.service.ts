@@ -4,6 +4,7 @@ export interface IngestDocumentResponse {
   status: string;
   document_id: number;
   chunks_processed: number;
+  docling_markdown?: string;
 }
 
 export interface SyncResult {
