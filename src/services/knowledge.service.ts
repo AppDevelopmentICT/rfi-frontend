@@ -24,11 +24,23 @@ export interface KBDocument {
   status: string;
   source: "upload" | "minio";
   minio_key: string | null;
+  created_at: string | null;
+}
+
+export interface ListDocumentsParams {
+  search?: string;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
+  page?: number;
+  per_page?: number;
 }
 
 export interface ListDocumentsResponse {
   documents: KBDocument[];
   total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
 }
 
 export interface DeleteDocumentResponse {
@@ -70,8 +82,17 @@ export async function syncKnowledgeBase(): Promise<SyncResult> {
   return data;
 }
 
-export async function listKnowledgeDocuments(): Promise<ListDocumentsResponse> {
+export async function listKnowledgeDocuments(
+  params?: ListDocumentsParams
+): Promise<ListDocumentsResponse> {
   const { data } = await apiClient.get<ListDocumentsResponse>("/v1/knowledge/documents", {
+    params: {
+      search: params?.search || undefined,
+      sort_by: params?.sort_by || "created_at",
+      sort_dir: params?.sort_dir || "desc",
+      page: params?.page || 1,
+      per_page: params?.per_page || 20,
+    },
     timeout: 15_000,
   });
   return data;
