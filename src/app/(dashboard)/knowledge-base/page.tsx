@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   FileText,
   FileIcon,
@@ -20,6 +20,7 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,6 +30,7 @@ import {
   syncKnowledgeBase,
   listKnowledgeDocuments,
   deleteKnowledgeDocument,
+  bulkDeleteKnowledgeDocuments,
 } from "@/services/knowledge.service";
 import type { KBDocument, SyncResult } from "@/services/knowledge.service";
 import {
@@ -42,6 +44,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const STATUS_VARIANTS: Record<string, string> = {
   completed: "default",
@@ -139,7 +153,47 @@ export default function KnowledgeBasePage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkAlertOpen, setBulkAlertOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const PER_PAGE = 10;
+
+  const allCurrentSelected = useMemo(
+    () => documents.length > 0 && documents.every((d) => selectedIds.has(d.id)),
+    [documents, selectedIds]
+  );
+
+  const someCurrentSelected = useMemo(
+    () => documents.some((d) => selectedIds.has(d.id)) && !allCurrentSelected,
+    [documents, selectedIds, allCurrentSelected]
+  );
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (allCurrentSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        documents.forEach((d) => next.delete(d.id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        documents.forEach((d) => next.add(d.id));
+        return next;
+      });
+    }
+  }, [documents, allCurrentSelected]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -184,6 +238,10 @@ export default function KnowledgeBasePage() {
     },
     [debouncedSearch, sortKey, sortDir, page]
   );
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [debouncedSearch, page]);
 
   useEffect(() => {
     loadDocuments();
@@ -294,6 +352,27 @@ export default function KnowledgeBasePage() {
       );
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const result = await bulkDeleteKnowledgeDocuments(ids);
+      setBulkAlertOpen(false);
+      setSelectedIds(new Set());
+      if (result.failed.length > 0) {
+        toast.warning(`Deleted ${result.deleted} documents, ${result.failed.length} failed`);
+      } else {
+        toast.success(`Deleted ${result.deleted} documents successfully`);
+      }
+      await loadDocuments(true);
+    } catch (error: any) {
+      toast.error(`Bulk delete failed: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -423,6 +502,61 @@ export default function KnowledgeBasePage() {
         )}
       </section>
 
+      {/* Bulk delete toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+          <span className="text-sm font-medium text-destructive">
+            {selectedIds.size} selected
+          </span>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearSelection}
+            className="h-7 text-xs gap-1 text-muted-foreground"
+          >
+            <X className="size-3" />
+            Clear
+          </Button>
+          <AlertDialog open={bulkAlertOpen} onOpenChange={setBulkAlertOpen}>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                />
+              }
+            >
+              <Trash2 className="size-3" />
+              Delete Selected
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {selectedIds.size} documents?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete {selectedIds.size} document{selectedIds.size > 1 ? "s" : ""} and all associated vector chunks. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={handleBulkDelete}
+                  disabled={isBulkDeleting}
+                  className="gap-1.5"
+                >
+                  {isBulkDeleting && (
+                    <span className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {isBulkDeleting ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
       {/* File Table Section */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -489,13 +623,19 @@ export default function KnowledgeBasePage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="w-10 pl-3 pr-0">
+                      <Checkbox
+                        checked={allCurrentSelected}
+                        {...(someCurrentSelected && { indeterminate: true })}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
                     <SortableHeader
                       label="File Name"
                       sortKey="filename"
                       currentSort={sortKey}
                       currentDir={sortDir}
                       onSort={handleSort}
-                      className="pl-4"
                     />
                     <SortableHeader
                       label="Source"
@@ -523,8 +663,14 @@ export default function KnowledgeBasePage() {
                 </TableHeader>
                 <TableBody>
                   {documents.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <TableCell className="pl-4">
+                    <TableRow key={doc.id} className={selectedIds.has(doc.id) ? "bg-muted/30" : ""}>
+                      <TableCell className="w-10 pl-3 pr-0">
+                        <Checkbox
+                          checked={selectedIds.has(doc.id)}
+                          onCheckedChange={() => toggleSelect(doc.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
                           <FileText className="size-4 text-muted-foreground shrink-0" />
                           <div className="min-w-0">

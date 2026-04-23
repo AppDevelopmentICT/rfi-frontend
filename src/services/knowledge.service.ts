@@ -107,3 +107,18 @@ export async function deleteKnowledgeDocument(
   return data;
 }
 
+export interface BulkDeleteResponse {
+  deleted: number;
+  failed: Array<{ id: number; error: string }>;
+}
+
+export async function bulkDeleteKnowledgeDocuments(
+  documentIds: number[]
+): Promise<BulkDeleteResponse> {
+  const { data } = await apiClient.post<BulkDeleteResponse>(
+    "/v1/knowledge/documents/bulk-delete",
+    { document_ids: documentIds }
+  );
+  return data;
+}
+
