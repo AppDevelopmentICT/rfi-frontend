@@ -68,6 +68,7 @@ export const MOCK_RFI_QUESTIONS: RFIQuestion[] = Array.from(
       answer: template.answer,
       originalAnswer: template.answer,
       status: "completed" as QuestionStatus,
+      sources: [],
     };
   }
 );

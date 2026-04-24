@@ -64,6 +64,7 @@ export function ColumnPickerModal({
           answer: "",
           originalAnswer: "",
           status: "idle" as QuestionStatus,
+          sources: [],
         });
       }
     }

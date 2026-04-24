@@ -19,6 +19,7 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
   const questions = useRFPStore((s) => s.questions);
   const isGeneratingAll = useRFPStore((s) => s.isGeneratingAll);
   const updateAnswer = useRFPStore((s) => s.updateAnswer);
+  const updateSources = useRFPStore((s) => s.updateSources);
   const setQuestionStatus = useRFPStore((s) => s.setQuestionStatus);
   const setGeneratingAll = useRFPStore((s) => s.setGeneratingAll);
   const bulkUpdateAnswers = useRFPStore((s) => s.bulkUpdateAnswers);
@@ -50,6 +51,7 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
         {
           onSuccess: (data) => {
             updateAnswer(id, data.answer);
+            updateSources(id, data.sources);
             setQuestionStatus(id, "completed");
             toast.success("Answer regenerated");
           },
@@ -59,7 +61,7 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
         }
       );
     },
-    [rfpId, setQuestionStatus, updateAnswer, regenerateMutation]
+    [rfpId, setQuestionStatus, updateAnswer, updateSources, regenerateMutation]
   );
 
   const handleGenerateAll = useCallback(() => {

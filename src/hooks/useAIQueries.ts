@@ -14,6 +14,8 @@ import {
   type SaveQuestionsResponse,
 } from "@/services/ai.service";
 
+export type { GenerateResult } from "@/services/ai.service";
+
 export function useUploadDocumentMutation() {
   return useMutation<UploadDocumentResponse, Error, File>({
     mutationFn: uploadDocument,

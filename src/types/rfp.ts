@@ -93,6 +93,7 @@ export const MOCK_RFP_QUESTIONS: RFPQuestion[] = Array.from(
       answer: template.answer,
       originalAnswer: template.answer,
       status: "completed" as QuestionStatus,
+      sources: [],
     };
   }
 );

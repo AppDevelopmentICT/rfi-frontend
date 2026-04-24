@@ -9,9 +9,10 @@ interface RFPStoreState {
 interface RFPStoreActions {
   setQuestions: (questions: RFPQuestion[]) => void;
   updateAnswer: (id: string, answer: string) => void;
+  updateSources: (id: string, sources: string[]) => void;
   setQuestionStatus: (id: string, status: QuestionStatus) => void;
   setGeneratingAll: (value: boolean) => void;
-  bulkUpdateAnswers: (results: { id: string; answer: string }[]) => void;
+  bulkUpdateAnswers: (results: { id: string; answer: string; sources?: string[] }[]) => void;
   resetQuestions: () => void;
 }
 
@@ -30,6 +31,13 @@ export const useRFPStore = create<RFPStore>()((set) => ({
       ),
     })),
 
+  updateSources: (id, sources) =>
+    set((state) => ({
+      questions: state.questions.map((q) =>
+        q.id === id ? { ...q, sources } : q
+      ),
+    })),
+
   setQuestionStatus: (id, status) =>
     set((state) => ({
       questions: state.questions.map((q) =>
@@ -41,12 +49,14 @@ export const useRFPStore = create<RFPStore>()((set) => ({
 
   bulkUpdateAnswers: (results) =>
     set((state) => {
-      const resultMap = new Map(results.map((r) => [r.id, r.answer]));
+      const resultMap = new Map(
+        results.map((r) => [r.id, { answer: r.answer, sources: r.sources ?? [] }])
+      );
       return {
         questions: state.questions.map((q) => {
-          const answer = resultMap.get(q.id);
-          return answer !== undefined
-            ? { ...q, answer, originalAnswer: answer, status: "completed" as QuestionStatus }
+          const data = resultMap.get(q.id);
+          return data !== undefined
+            ? { ...q, answer: data.answer, originalAnswer: data.answer, sources: data.sources, status: "completed" as QuestionStatus }
             : q;
         }),
       };

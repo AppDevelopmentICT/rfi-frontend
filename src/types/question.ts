@@ -7,4 +7,5 @@ export interface Question {
   answer: string;
   originalAnswer: string;
   status: QuestionStatus;
+  sources: string[];
 }

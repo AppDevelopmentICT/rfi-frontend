@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, memo } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Database } from "lucide-react";
 import type { Question } from "@/types/question";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -86,8 +86,8 @@ export const QuestionCard = memo(function QuestionCard({
             placeholder={isGenerating ? "Generating answer..." : "AI-generated answer will appear here..."}
           />
         </CardContent>
-        <CardFooter className="flex items-center justify-between">
-          <div>
+        <CardFooter className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             {isGenerating && (
               <Badge variant="secondary">
                 <Loader2 className="animate-spin" />
@@ -102,6 +102,18 @@ export const QuestionCard = memo(function QuestionCard({
             )}
             {question.status === "idle" && (
               <Badge variant="ghost">Not started</Badge>
+            )}
+            {!isGenerating && question.sources.length > 0 && (
+              <Badge
+                variant="secondary"
+                className="max-w-[240px] truncate text-muted-foreground"
+                title={question.sources.join(", ")}
+              >
+                <Database className="shrink-0" />
+                <span className="truncate">
+                  {question.sources.join(", ")}
+                </span>
+              </Badge>
             )}
           </div>
           <Button

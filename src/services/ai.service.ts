@@ -15,8 +15,14 @@ export interface GenerateAllRequest {
   questions: Question[];
 }
 
+export interface GenerateResult {
+  id: string;
+  answer: string;
+  sources: string[];
+}
+
 export interface GenerateAllResponse {
-  results: { id: string; answer: string }[];
+  results: GenerateResult[];
 }
 
 export interface RegenerateRequest {
@@ -28,6 +34,7 @@ export interface RegenerateRequest {
 export interface RegenerateResponse {
   id: string;
   answer: string;
+  sources: string[];
 }
 
 export interface SaveQuestionsRequest {
@@ -78,6 +85,7 @@ export async function uploadDocument(
       answer: "",
       originalAnswer: "",
       status: "idle" as QuestionStatus,
+      sources: [],
     }));
     return {
       documentId: `mock-doc-${Date.now()}`,
@@ -105,6 +113,7 @@ export async function generateAll(
       results: req.questions.map((q) => ({
         id: q.id,
         answer: MOCK_ANSWER,
+        sources: ["Company_Profile.pdf", "Technical_Capabilities.pdf"],
       })),
     };
   }
@@ -124,6 +133,7 @@ export async function regenerate(
     return {
       id: req.questionId,
       answer: `${MOCK_ANSWER} (Regenerated at ${new Date().toLocaleTimeString()})`,
+      sources: ["Company_Profile.pdf", "Technical_Capabilities.pdf"],
     };
   }
 
