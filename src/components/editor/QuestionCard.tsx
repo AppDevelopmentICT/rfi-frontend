@@ -106,12 +106,25 @@ export const QuestionCard = memo(function QuestionCard({
             {!isGenerating && question.sources.length > 0 && (
               <Badge
                 variant="secondary"
-                className="max-w-[240px] truncate text-muted-foreground"
+                className="max-w-[320px] text-muted-foreground"
                 title={question.sources.join(", ")}
               >
                 <Database className="shrink-0" />
                 <span className="truncate">
-                  {question.sources.join(", ")}
+                  {question.sources.map((source, i) => (
+                    <a
+                      key={source}
+                      href={`/api/v1/knowledge/download/${encodeURIComponent(source)}`}
+                      download
+                      onClick={(e) => e.stopPropagation()}
+                      className="underline-offset-2 hover:underline hover:text-foreground"
+                    >
+                      {source}
+                    </a>
+                  )).reduce<React.ReactNode[]>((acc, cur, i) => {
+                    if (i === 0) return [cur];
+                    return [...acc, ", ", cur];
+                  }, [])}
                 </span>
               </Badge>
             )}
