@@ -1,4 +1,4 @@
-import { RFPEditor } from "@/components/editor/RFPEditor";
+import { RFPTechnicalEditor } from "@/components/editor/RFPTechnicalEditor";
 
 interface RfpEditorPageProps {
   params: Promise<{ id: string }>;
@@ -7,5 +7,5 @@ interface RfpEditorPageProps {
 export default async function RfpEditorPage({ params }: RfpEditorPageProps) {
   const { id } = await params;
 
-  return <RFPEditor rfpId={id} />;
+  return <RFPTechnicalEditor rfpId={id} />;
 }

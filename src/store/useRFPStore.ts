@@ -1,9 +1,19 @@
 import { create } from "zustand";
 import type { RFPQuestion, QuestionStatus } from "@/types/rfp";
 
+type GenerationPhase = "idle" | "generating" | "adjusting" | "completed" | "error";
+
 interface RFPStoreState {
   questions: RFPQuestion[];
   isGeneratingAll: boolean;
+
+  product: string;
+  projectName: string;
+  projectDescription: string;
+  technicalContent: string;
+  streamingContent: string;
+  phase: GenerationPhase;
+  errorMessage: string;
 }
 
 interface RFPStoreActions {
@@ -14,13 +24,31 @@ interface RFPStoreActions {
   setGeneratingAll: (value: boolean) => void;
   bulkUpdateAnswers: (results: { id: string; answer: string; sources?: string[] }[]) => void;
   resetQuestions: () => void;
+
+  setProductInfo: (product: string, projectName: string, projectDescription: string) => void;
+  appendChunk: (chunk: string) => void;
+  setTechnicalContent: (content: string) => void;
+  setPhase: (phase: GenerationPhase) => void;
+  setErrorMessage: (msg: string) => void;
+  resetTechnical: () => void;
 }
 
 type RFPStore = RFPStoreState & RFPStoreActions;
 
-export const useRFPStore = create<RFPStore>()((set) => ({
+const initialState: RFPStoreState = {
   questions: [],
   isGeneratingAll: false,
+  product: "",
+  projectName: "",
+  projectDescription: "",
+  technicalContent: "",
+  streamingContent: "",
+  phase: "idle",
+  errorMessage: "",
+};
+
+export const useRFPStore = create<RFPStore>()((set) => ({
+  ...initialState,
 
   setQuestions: (questions) => set({ questions }),
 
@@ -63,4 +91,27 @@ export const useRFPStore = create<RFPStore>()((set) => ({
     }),
 
   resetQuestions: () => set({ questions: [], isGeneratingAll: false }),
+
+  setProductInfo: (product, projectName, projectDescription) =>
+    set({ product, projectName, projectDescription }),
+
+  appendChunk: (chunk) =>
+    set((state) => ({
+      streamingContent: state.streamingContent + chunk,
+    })),
+
+  setTechnicalContent: (content) =>
+    set({ technicalContent: content, streamingContent: content }),
+
+  setPhase: (phase) => set({ phase }),
+
+  setErrorMessage: (msg) => set({ errorMessage: msg }),
+
+  resetTechnical: () =>
+    set({
+      technicalContent: "",
+      streamingContent: "",
+      phase: "idle",
+      errorMessage: "",
+    }),
 }));
