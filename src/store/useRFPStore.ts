@@ -27,6 +27,7 @@ interface RFPStoreActions {
 
   setProductInfo: (product: string, projectName: string, projectDescription: string) => void;
   appendChunk: (chunk: string) => void;
+  clearStreamingContent: () => void;
   setTechnicalContent: (content: string) => void;
   setPhase: (phase: GenerationPhase) => void;
   setErrorMessage: (msg: string) => void;
@@ -99,6 +100,8 @@ export const useRFPStore = create<RFPStore>()((set) => ({
     set((state) => ({
       streamingContent: state.streamingContent + chunk,
     })),
+
+  clearStreamingContent: () => set({ streamingContent: "" }),
 
   setTechnicalContent: (content) =>
     set({ technicalContent: content, streamingContent: content }),

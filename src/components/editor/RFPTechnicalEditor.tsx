@@ -28,6 +28,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
 import { useRFPStore } from "@/store/useRFPStore";
 import { useRFPStream } from "@/hooks/useRFPStream";
+import { markdownToHtml } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +45,7 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
   const streamingContent = useRFPStore((s) => s.streamingContent);
   const phase = useRFPStore((s) => s.phase);
   const appendChunk = useRFPStore((s) => s.appendChunk);
+  const clearStreamingContent = useRFPStore((s) => s.clearStreamingContent);
   const setTechnicalContent = useRFPStore((s) => s.setTechnicalContent);
   const setPhase = useRFPStore((s) => s.setPhase);
   const setErrorMessage = useRFPStore((s) => s.setErrorMessage);
@@ -91,9 +93,10 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
       appendChunk(chunk);
     },
     onComplete: (full) => {
-      setTechnicalContent(full);
+      const html = markdownToHtml(full);
+      setTechnicalContent(html);
       storeUpdateRef.current = true;
-      editor?.commands.setContent(full);
+      editor?.commands.setContent(html);
       storeUpdateRef.current = false;
       const text = editor?.getText() || "";
       setWordCount(text.trim().split(/\s+/).filter(Boolean).length);
@@ -142,13 +145,15 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
       toast.error("Product name required");
       return;
     }
+    clearStreamingContent();
+    editor?.commands.clearContent();
     setPhase("generating");
     setPromptHistory((prev) => [
       ...prev,
       { role: "user", text: `Generate Chapter 3 for "${product}"` },
     ]);
     stream.generate(product, { projectName, projectDescription });
-  }, [product, projectName, projectDescription, stream, setPhase]);
+  }, [product, projectName, projectDescription, stream, setPhase, clearStreamingContent, editor]);
 
   const handleAdjust = useCallback(() => {
     if (!adjustContext.trim()) {
@@ -160,12 +165,14 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
       return;
     }
     const ctx = adjustContext;
+    const plainContent = editor?.getText() || technicalContent;
+    clearStreamingContent();
+    editor?.commands.clearContent();
     setPhase("adjusting");
     setPromptHistory((prev) => [...prev, { role: "user", text: ctx }]);
-    const plainContent = editor?.getText() || technicalContent;
     stream.adjust(product, plainContent, ctx);
     setAdjustContext("");
-  }, [adjustContext, technicalContent, product, stream, setPhase, editor]);
+  }, [adjustContext, technicalContent, product, stream, setPhase, editor, clearStreamingContent]);
 
   const handleSave = useCallback(() => {
     toast.success("Changes saved successfully");
@@ -288,10 +295,12 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
                       : "Adjusting content..."}
                   </span>
                 </div>
-                <div className="whitespace-pre-wrap font-mono text-[13px] leading-relaxed text-foreground/90">
-                  {streamingContent}
-                  <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-foreground" />
-                </div>
+                <div
+                  className="prose prose-sm prose-neutral max-w-none dark:prose-invert text-[13px]"
+                  dangerouslySetInnerHTML={{
+                    __html: markdownToHtml(streamingContent) + '<span class="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-foreground" />',
+                  }}
+                />
               </div>
             </div>
           ) : hasContent && editor ? (
