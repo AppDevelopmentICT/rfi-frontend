@@ -32,7 +32,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
         {/* Mobile Header only, Desktop gets integrated breadcrumbs inside main */}
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        <main className="flex-1 overflow-hidden">
           <div className="mx-auto flex h-full w-full max-w-7xl flex-col bg-background p-4 md:p-8">
             {children}
           </div>

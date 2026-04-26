@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Sparkles,
   Loader2,
@@ -8,8 +8,24 @@ import {
   Download,
   RotateCcw,
   Send,
+  FileText,
+  MessageSquare,
+  X,
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Heading1,
+  Heading2,
+  Heading3,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
+import Typography from "@tiptap/extension-typography";
 import { useRFPStore } from "@/store/useRFPStore";
 import { useRFPStream } from "@/hooks/useRFPStream";
 import { Button } from "@/components/ui/button";
@@ -33,10 +49,41 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
   const setErrorMessage = useRFPStore((s) => s.setErrorMessage);
 
   const [adjustContext, setAdjustContext] = useState("");
-  const [editedContent, setEditedContent] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const [promptHistory, setPromptHistory] = useState<
+    { role: "user" | "system"; text: string }[]
+  >([]);
+  const [wordCount, setWordCount] = useState(0);
+  const editorScrollRef = useRef<HTMLDivElement>(null);
+  const panelScrollRef = useRef<HTMLDivElement>(null);
   const prevStreamRef = useRef(streamingContent);
+  const storeUpdateRef = useRef(false);
+
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+      }),
+      Placeholder.configure({
+        placeholder: "Technical content will appear here...",
+      }),
+      Typography,
+    ],
+    editable: true,
+    editorProps: {
+      attributes: {
+        class:
+          "outline-none min-h-full prose prose-sm prose-neutral max-w-none dark:prose-invert prose-headings:font-semibold prose-h1:text-xl prose-h2:text-base prose-h3:text-sm prose-p:leading-relaxed prose-p:text-[13.5px] prose-li:text-[13.5px] prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5",
+      },
+    },
+    onUpdate: ({ editor: ed }) => {
+      if (storeUpdateRef.current) return;
+      const html = ed.getHTML();
+      setTechnicalContent(html);
+      const text = ed.getText();
+      setWordCount(text.trim().split(/\s+/).filter(Boolean).length);
+    },
+  });
 
   const stream = useRFPStream({
     onChunk: (chunk) => {
@@ -44,56 +91,50 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
     },
     onComplete: (full) => {
       setTechnicalContent(full);
-      setEditedContent(null);
+      storeUpdateRef.current = true;
+      editor?.commands.setContent(full);
+      storeUpdateRef.current = false;
+      const text = editor?.getText() || "";
+      setWordCount(text.trim().split(/\s+/).filter(Boolean).length);
       setPhase("completed");
+      setPromptHistory((prev) => [
+        ...prev,
+        { role: "system", text: "Content updated successfully." },
+      ]);
       toast.success("Generation complete");
     },
     onError: (msg) => {
       setPhase("error");
       setErrorMessage(msg);
+      setPromptHistory((prev) => [
+        ...prev,
+        { role: "system", text: `Error: ${msg}` },
+      ]);
     },
   });
 
   const isStreaming = stream.isStreaming;
-  const phaseLabel =
-    phase === "generating"
-      ? "Generating..."
-      : phase === "adjusting"
-        ? "Adjusting..."
-        : null;
 
-  const displayContent = useMemo(() => {
-    if (isStreaming) return streamingContent;
-    if (editedContent !== null) return editedContent;
-    return technicalContent;
-  }, [isStreaming, streamingContent, editedContent, technicalContent]);
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(!isStreaming);
+  }, [editor, isStreaming]);
 
   useEffect(() => {
     if (isStreaming && prevStreamRef.current !== streamingContent) {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      if (editorScrollRef.current) {
+        editorScrollRef.current.scrollTop =
+          editorScrollRef.current.scrollHeight;
       }
     }
     prevStreamRef.current = streamingContent;
   }, [streamingContent, isStreaming]);
 
-  const handleLocalChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value;
-      setEditedContent(val);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        setTechnicalContent(val);
-      }, 500);
-    },
-    [setTechnicalContent]
-  );
-
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+    if (panelScrollRef.current) {
+      panelScrollRef.current.scrollTop = panelScrollRef.current.scrollHeight;
+    }
+  }, [promptHistory]);
 
   const handleGenerate = useCallback(() => {
     if (!product.trim()) {
@@ -101,6 +142,10 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
       return;
     }
     setPhase("generating");
+    setPromptHistory((prev) => [
+      ...prev,
+      { role: "user", text: `Generate Chapter 3 for "${product}"` },
+    ]);
     stream.generate(product, { projectName, projectDescription });
   }, [product, projectName, projectDescription, stream, setPhase]);
 
@@ -113,23 +158,25 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
       toast.error("No content to adjust. Generate first.");
       return;
     }
+    const ctx = adjustContext;
     setPhase("adjusting");
-    stream.adjust(product, technicalContent, adjustContext);
+    setPromptHistory((prev) => [...prev, { role: "user", text: ctx }]);
+    const plainContent = editor?.getText() || technicalContent;
+    stream.adjust(product, plainContent, ctx);
     setAdjustContext("");
-  }, [adjustContext, technicalContent, product, stream, setPhase]);
+  }, [adjustContext, technicalContent, product, stream, setPhase, editor]);
 
   const handleSave = useCallback(() => {
     toast.success("Changes saved successfully");
   }, []);
 
   const handleExport = useCallback(() => {
-    if (!displayContent.trim()) {
+    const text = editor?.getText() || "";
+    if (!text.trim()) {
       toast.error("No content to export");
       return;
     }
-    const blob = new Blob([displayContent], {
-      type: "text/plain;charset=utf-8",
-    });
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -137,119 +184,209 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Exported successfully");
-  }, [displayContent, rfpId]);
+  }, [editor, rfpId]);
 
   const hasContent = technicalContent.trim().length > 0;
-  const isEdited =
-    hasContent && editedContent !== null && editedContent !== technicalContent;
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold tracking-tight">
-              RFP Technical Proposal — {product || rfpId}
-            </h1>
-            {isStreaming && phaseLabel && (
-              <Badge variant="secondary" className="gap-1">
-                <Loader2 className="size-3 animate-spin" />
-                {phaseLabel}
-              </Badge>
-            )}
-            {phase === "completed" && !isStreaming && (
-              <Badge variant="secondary">Complete</Badge>
-            )}
-            {phase === "error" && (
-              <Badge variant="destructive">Error</Badge>
-            )}
-            {isEdited && <Badge variant="outline">Edited</Badge>}
+    <div className="-m-4 flex h-[calc(100%+2rem)] flex-col overflow-hidden md:-m-8 md:h-[calc(100%+4rem)]">
+      {/* Toolbar */}
+      <div className="flex shrink-0 items-center justify-between border-b bg-background/95 px-4 py-2 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-md bg-primary/10">
+            <FileText className="size-3.5 text-primary" />
           </div>
-          <div className="flex items-center gap-2">
-            {!hasContent && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleGenerate}
-                disabled={isStreaming}
-              >
-                {isStreaming ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <Sparkles />
-                )}
-                Generate Chapter 3
-              </Button>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold leading-none tracking-tight">
+              {product || rfpId}
+            </span>
+            {projectName && (
+              <span className="text-[11px] leading-tight text-muted-foreground">
+                {projectName}
+              </span>
             )}
-            <Button variant="outline" size="sm" onClick={handleSave}>
-              <Save />
-              Save
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleExport}>
-              <Download />
-              Export
-            </Button>
           </div>
+          {isStreaming && (
+            <Badge variant="secondary" className="gap-1 text-[11px]">
+              <Loader2 className="size-3 animate-spin" />
+              {phase === "generating" ? "Generating" : "Adjusting"}
+            </Badge>
+          )}
+          {phase === "completed" && !isStreaming && (
+            <Badge variant="secondary" className="text-[11px]">
+              Complete
+            </Badge>
+          )}
+          {phase === "error" && (
+            <Badge variant="destructive" className="text-[11px]">
+              Error
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {!hasContent && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleGenerate}
+              disabled={isStreaming}
+            >
+              {isStreaming ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Sparkles />
+              )}
+              Generate
+            </Button>
+          )}
+          {hasContent && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleGenerate}
+              disabled={isStreaming}
+            >
+              <RotateCcw className="size-3" />
+              Redo
+            </Button>
+          )}
+          <Button variant="outline" size="xs" onClick={handleSave}>
+            <Save className="size-3" />
+            Save
+          </Button>
+          <Button variant="ghost" size="xs" onClick={handleExport}>
+            <Download className="size-3" />
+            Export
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto" ref={scrollRef}>
-        <div className="mx-auto max-w-4xl px-6 py-6">
+      {/* Split Pane Body */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Left: Editor (scrollable) */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-r">
           {isStreaming ? (
-            <div className="min-h-[400px] rounded-xl border bg-card p-6">
-              <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                <span>
-                  {phase === "generating"
-                    ? "Generating technical proposal..."
-                    : "Adjusting content..."}
+            <div
+              ref={editorScrollRef}
+              className="min-h-0 flex-1 overflow-y-auto p-6"
+            >
+              <div className="mx-auto max-w-3xl">
+                <div className="mb-3 flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    {phase === "generating"
+                      ? "Generating technical proposal..."
+                      : "Adjusting content..."}
+                  </span>
+                </div>
+                <div className="whitespace-pre-wrap font-mono text-[13px] leading-relaxed text-foreground/90">
+                  {streamingContent}
+                  <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-foreground" />
+                </div>
+              </div>
+            </div>
+          ) : hasContent && editor ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {/* Formatting bar */}
+              <div className="flex shrink-0 items-center gap-0.5 border-b bg-muted/30 px-3 py-1">
+                <ToolbarBtn
+                  icon={Bold}
+                  active={editor.isActive("bold")}
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  title="Bold"
+                />
+                <ToolbarBtn
+                  icon={Italic}
+                  active={editor.isActive("italic")}
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  title="Italic"
+                />
+                <div className="mx-1 h-4 w-px bg-border" />
+                <ToolbarBtn
+                  icon={Heading1}
+                  active={editor.isActive("heading", { level: 1 })}
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 1 }).run()
+                  }
+                  title="Heading 1"
+                />
+                <ToolbarBtn
+                  icon={Heading2}
+                  active={editor.isActive("heading", { level: 2 })}
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 2 }).run()
+                  }
+                  title="Heading 2"
+                />
+                <ToolbarBtn
+                  icon={Heading3}
+                  active={editor.isActive("heading", { level: 3 })}
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 3 }).run()
+                  }
+                  title="Heading 3"
+                />
+                <div className="mx-1 h-4 w-px bg-border" />
+                <ToolbarBtn
+                  icon={List}
+                  active={editor.isActive("bulletList")}
+                  onClick={() =>
+                    editor.chain().focus().toggleBulletList().run()
+                  }
+                  title="Bullet list"
+                />
+                <ToolbarBtn
+                  icon={ListOrdered}
+                  active={editor.isActive("orderedList")}
+                  onClick={() =>
+                    editor.chain().focus().toggleOrderedList().run()
+                  }
+                  title="Numbered list"
+                />
+                <div className="mx-1 h-4 w-px bg-border" />
+                <ToolbarBtn
+                  icon={Undo2}
+                  active={false}
+                  onClick={() => editor.chain().focus().undo().run()}
+                  title="Undo"
+                />
+                <ToolbarBtn
+                  icon={Redo2}
+                  active={false}
+                  onClick={() => editor.chain().focus().redo().run()}
+                  title="Redo"
+                />
+                <div className="flex-1" />
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {wordCount} words
                 </span>
               </div>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {streamingContent}
-                <span className="inline-block h-4 w-0.5 animate-pulse bg-foreground" />
+
+              {/* Editor content (scrolls) */}
+              <div
+                ref={editorScrollRef}
+                className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
+              >
+                <div className="mx-auto max-w-3xl">
+                  <EditorContent editor={editor} />
+                </div>
               </div>
-            </div>
-          ) : hasContent ? (
-            <div className="rounded-xl border bg-card p-6">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-muted-foreground">
-                  Chapter 3 — Technical Content
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={handleGenerate}
-                  disabled={isStreaming}
-                >
-                  <RotateCcw className="size-3" />
-                  Regenerate
-                </Button>
-              </div>
-              <Textarea
-                value={displayContent}
-                onChange={handleLocalChange}
-                className="min-h-[500px] resize-y text-sm leading-relaxed"
-                placeholder="Technical content will appear here..."
-              />
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-24 text-center">
-              <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10">
-                <Sparkles className="size-7 text-primary" />
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+              <div className="flex size-14 items-center justify-center rounded-xl bg-muted">
+                <FileText className="size-6 text-muted-foreground" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold">
-                Generate Technical Proposal
-              </h3>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Click &quot;Generate Chapter 3&quot; to start generating the
-                technical content for your RFP proposal. You can adjust and
-                refine the result afterwards.
-              </p>
+              <div className="text-center">
+                <h3 className="text-sm font-semibold">No content yet</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Generate the technical proposal to get started.
+                </p>
+              </div>
               <Button
                 variant="default"
-                size="lg"
-                className="mt-6"
+                size="sm"
                 onClick={handleGenerate}
                 disabled={isStreaming}
               >
@@ -258,42 +395,138 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
               </Button>
             </div>
           )}
+        </div>
 
-          {hasContent && !isStreaming && (
-            <div className="mt-4 rounded-xl border bg-card p-4">
-              <h3 className="mb-2 text-sm font-semibold">Adjust Content</h3>
-              <p className="mb-3 text-xs text-muted-foreground">
-                Describe how you want to refine the generated content. The AI
-                will rewrite the chapter based on your instructions.
-              </p>
-              <div className="flex gap-2">
-                <Textarea
-                  value={adjustContext}
-                  onChange={(e) => setAdjustContext(e.target.value)}
-                  placeholder="e.g. Make the security section more detailed, add cloud deployment architecture..."
-                  className="min-h-[60px] flex-1 resize-none text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAdjust();
-                    }
-                  }}
-                />
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleAdjust}
-                  disabled={isStreaming}
-                  className="shrink-0 self-end"
-                >
-                  <Send />
-                  Adjust
-                </Button>
-              </div>
+        {/* Right: Adjust Panel (stays still) */}
+        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden bg-muted/20">
+          <div className="flex items-center justify-between border-b px-4 py-2">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="size-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold">Adjust & Refine</span>
             </div>
-          )}
+            {promptHistory.length > 0 && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setPromptHistory([])}
+                title="Clear history"
+              >
+                <X className="size-3" />
+              </Button>
+            )}
+          </div>
+
+          <div
+            ref={panelScrollRef}
+            className="flex-1 overflow-y-auto px-4 py-3"
+          >
+            {promptHistory.length === 0 && !hasContent ? (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Generate content first, then use this panel to adjust and
+                  refine with natural language instructions.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {promptHistory.map((entry, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
+                      entry.role === "user"
+                        ? "bg-primary/10 text-foreground"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {entry.role === "user" ? (
+                      <span className="font-medium">{entry.text}</span>
+                    ) : (
+                      <span>{entry.text}</span>
+                    )}
+                  </div>
+                ))}
+                {isStreaming && (
+                  <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+                    <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      Processing...
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t bg-background p-3">
+            <div className="flex gap-2">
+              <Textarea
+                value={adjustContext}
+                onChange={(e) => setAdjustContext(e.target.value)}
+                placeholder={
+                  hasContent
+                    ? "e.g. Make security section more detailed..."
+                    : "Generate content first..."
+                }
+                disabled={!hasContent || isStreaming}
+                className="min-h-[56px] flex-1 resize-none border-input/60 bg-background text-xs"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAdjust();
+                  }
+                }}
+              />
+              <Button
+                variant="default"
+                size="icon"
+                onClick={handleAdjust}
+                disabled={!hasContent || isStreaming || !adjustContext.trim()}
+                className="size-9 shrink-0 self-end"
+              >
+                <Send className="size-3.5" />
+              </Button>
+            </div>
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              Press{" "}
+              <kbd className="rounded border px-1 font-mono text-[10px]">
+                Enter
+              </kbd>{" "}
+              to send,{" "}
+              <kbd className="rounded border px-1 font-mono text-[10px]">
+                Shift+Enter
+              </kbd>{" "}
+              for new line
+            </p>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function ToolbarBtn({
+  icon: Icon,
+  active,
+  onClick,
+  title,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  active: boolean;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`flex size-6 items-center justify-center rounded transition-colors ${
+        active
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+      }`}
+    >
+      <Icon className="size-3.5" />
+    </button>
   );
 }
