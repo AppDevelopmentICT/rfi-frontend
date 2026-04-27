@@ -204,7 +204,7 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
   }, [product, technicalContent, isStreaming, handleGenerate]);
 
   return (
-    <div className="-m-4 flex h-[calc(100%+2rem)] flex-col overflow-hidden md:-m-8 md:h-[calc(100%+4rem)]">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Toolbar */}
       <div className="flex shrink-0 items-center justify-between border-b bg-background/95 px-4 py-2 backdrop-blur-sm">
         <div className="flex items-center gap-2">

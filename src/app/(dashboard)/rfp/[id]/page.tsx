@@ -7,5 +7,9 @@ interface RfpEditorPageProps {
 export default async function RfpEditorPage({ params }: RfpEditorPageProps) {
   const { id } = await params;
 
-  return <RFPTechnicalEditor rfpId={id} />;
+  return (
+    <div className="-m-4 md:-m-8 h-full">
+      <RFPTechnicalEditor rfpId={id} />
+    </div>
+  );
 }

@@ -7,5 +7,9 @@ interface RfiEditorPageProps {
 export default async function RfiEditorPage({ params }: RfiEditorPageProps) {
   const { id } = await params;
 
-  return <RFIEditor rfiId={id} />;
+  return (
+    <div className="-m-4 h-full md:-m-8">
+      <RFIEditor rfiId={id} />
+    </div>
+  );
 }

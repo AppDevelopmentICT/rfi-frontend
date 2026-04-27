@@ -18,5 +18,9 @@ export default function RfiViewerPage() {
 
   if (!documentId || questions.length === 0) return null;
 
-  return <RFIEditor rfiId={documentId} />;
+  return (
+    <div className="-m-4 h-full md:-m-8">
+      <RFIEditor rfiId={documentId} />
+    </div>
+  );
 }

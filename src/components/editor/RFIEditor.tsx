@@ -120,7 +120,7 @@ export function RFIEditor({ rfiId }: RFIEditorProps) {
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-muted/40">
+    <div className="flex h-full flex-col overflow-hidden bg-muted/40">
       <EditorHeader
         title={`RFI Project - ${rfiId}.xlsx`}
         questionCount={questions.length}
