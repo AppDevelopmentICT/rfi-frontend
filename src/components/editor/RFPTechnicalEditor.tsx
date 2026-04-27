@@ -204,7 +204,7 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
   }, [product, technicalContent, isStreaming, handleGenerate]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex flex-col overflow-hidden" style={{ height: "calc(100dvh - 3.5rem)" }}>
       {/* Toolbar */}
       <div className="flex shrink-0 items-center justify-between border-b bg-background/95 px-4 py-2 backdrop-blur-sm">
         <div className="flex items-center gap-2">

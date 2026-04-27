@@ -8,7 +8,7 @@ export default async function RfpEditorPage({ params }: RfpEditorPageProps) {
   const { id } = await params;
 
   return (
-    <div className="-m-4 md:-m-8 h-full">
+    <div className="h-full max-w-none">
       <RFPTechnicalEditor rfpId={id} />
     </div>
   );
