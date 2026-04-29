@@ -24,6 +24,7 @@ export async function uploadAndReadExcel(file: File): Promise<UploadRfiResponse>
 export interface RFIProjectResponse {
   documentId: string;
   id?: number;
+  slug?: string | null;
   fileName: string;
   filename?: string;
   excelData: ExcelData;
@@ -109,6 +110,7 @@ export interface AutoFillResult {
   documentId: string;
   status: string;
   fileName?: string;
+  slug?: string;
   excelData?: ExcelData;
   message?: string;
 }

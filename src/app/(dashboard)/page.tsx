@@ -63,8 +63,8 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex-1 space-y-6 px-6 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-6 overflow-hidden px-6 py-6">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -76,7 +76,7 @@ export default function HomePage() {
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid shrink-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <StatCard
           title="Total RFI Uploaded"
           value={stats?.total_rfi || 0}
@@ -97,15 +97,15 @@ export default function HomePage() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader>
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="flex min-h-0 flex-col border-border/70 shadow-sm">
+          <CardHeader className="shrink-0">
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="size-5" />
               My Generated RFI
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-h-0 flex-1 overflow-auto">
             {documents.length === 0 ? (
               <div className="rounded-xl border border-dashed p-8 text-center">
                 <p className="font-medium">No generated RFI yet</p>
@@ -163,14 +163,14 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader>
+        <Card className="flex min-h-0 flex-col border-border/70 shadow-sm">
+          <CardHeader className="shrink-0">
             <CardTitle className="flex items-center gap-2">
               <FileClock className="size-5" />
               Activity History
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-h-0 flex-1 overflow-auto">
             {history.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No activity found.</p>
             ) : (

@@ -32,7 +32,7 @@ export function useAutoFillMutation() {
     onSuccess: (result, variables) => {
       useRFIStore.getState().addJob({
         id: result.documentId,
-        filename: variables.file.name.replace(/\.[^.]+$/, "") + "_answered.xlsx",
+        filename: result.fileName || variables.file.name.replace(/\.[^.]+$/, "") + "_answered.xlsx",
         status: "generating"
       });
       toast.success("Workbook generation started in background.");
