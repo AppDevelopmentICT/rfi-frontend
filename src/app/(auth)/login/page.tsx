@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -138,14 +139,23 @@ export default function LoginPage() {
       <Button
         type="button"
         variant="outline"
-        className="mb-6 w-full h-11 border-[#e2e8f0]"
+        className="mb-6 h-[41px] w-full gap-3 rounded-sm border-[#8c8c8c] bg-white font-['Segoe_UI',Arial,sans-serif] text-[15px] font-semibold text-[#5e5e5e] shadow-none hover:bg-[#f8f8f8] hover:text-[#5e5e5e]"
         disabled={oauthBusy}
         onClick={handleMicrosoft}
       >
         {oauthBusy ? (
           <Loader2 className="size-4 animate-spin mr-2" />
-        ) : null}
-        Continue with Microsoft
+        ) : (
+          <Image
+            src="/assets/microsoft-logo.svg"
+            alt=""
+            aria-hidden="true"
+            width={21}
+            height={21}
+            className="size-[21px]"
+          />
+        )}
+        Sign in with Microsoft
       </Button>
 
       {SHOW_PASSWORD_LOGIN ? (

@@ -25,14 +25,16 @@ import {
 import { toast } from "sonner";
 
 import { FileUpload } from "@/components/shared/FileUpload";
+import { ProductCombobox } from "@/components/shared/ProductCombobox";
 import {
   ingestKnowledgeDocument,
   syncKnowledgeBase,
   listKnowledgeDocuments,
+  listKnowledgeProducts,
   deleteKnowledgeDocument,
   bulkDeleteKnowledgeDocuments,
 } from "@/services/knowledge.service";
-import type { KBDocument, SyncResult } from "@/services/knowledge.service";
+import type { KBDocument, KBProduct, SyncResult } from "@/services/knowledge.service";
 import {
   Table,
   TableBody,
@@ -100,6 +102,19 @@ function formatRelativeTime(dateStr: string | null): string {
   });
 }
 
+function getErrorMessage(error: unknown, fallback = "Unknown error") {
+  if (error instanceof Error) return error.message;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error &&
+    typeof (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail === "string"
+  ) {
+    return String((error as { response: { data: { detail: string } } }).response.data.detail);
+  }
+  return fallback;
+}
+
 function SortableHeader({
   label,
   sortKey,
@@ -148,6 +163,10 @@ export default function KnowledgeBasePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [uploadProduct, setUploadProduct] = useState("");
+  const [uploadProductKnown, setUploadProductKnown] = useState(false);
+  const [productFilter, setProductFilter] = useState("");
+  const [products, setProducts] = useState<KBProduct[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
@@ -195,6 +214,14 @@ export default function KnowledgeBasePage() {
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
+  const loadProducts = useCallback(async () => {
+    try {
+      setProducts(await listKnowledgeProducts());
+    } catch (error) {
+      console.error("Failed to load products:", error);
+    }
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
@@ -221,6 +248,7 @@ export default function KnowledgeBasePage() {
       try {
         const response = await listKnowledgeDocuments({
           search: debouncedSearch || undefined,
+          product: productFilter || undefined,
           sort_by: sortKey,
           sort_dir: sortDir,
           page,
@@ -229,26 +257,38 @@ export default function KnowledgeBasePage() {
         setDocuments(response.documents);
         setTotalPages(response.total_pages);
         setTotalCount(response.total);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Failed to load documents:", error);
         if (!silent) toast.error("Failed to load knowledge base documents");
       } finally {
         setIsLoadingDocs(false);
       }
     },
-    [debouncedSearch, sortKey, sortDir, page]
+    [debouncedSearch, productFilter, sortKey, sortDir, page]
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIds(new Set());
-  }, [debouncedSearch, page]);
+  }, [debouncedSearch, productFilter, page]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDocuments();
   }, [loadDocuments]);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadProducts();
+  }, [loadProducts]);
+
   const handleDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
+    const productName = uploadProduct.trim();
+    if (!productName) {
+      toast.error("Please choose or add a product name before uploading documents");
+      return;
+    }
 
     setIsUploading(true);
 
@@ -260,6 +300,7 @@ export default function KnowledgeBasePage() {
         filename: file.name,
         status: "processing" as const,
         source: "upload" as const,
+        product: productName,
         minio_key: null,
         created_at: now,
       })),
@@ -269,7 +310,7 @@ export default function KnowledgeBasePage() {
     for (let idx = 0; idx < acceptedFiles.length; idx++) {
       const file = acceptedFiles[idx];
       try {
-        const result = await ingestKnowledgeDocument(file);
+        const result = await ingestKnowledgeDocument(file, productName);
         toast.success(`Vectorized ${file.name} successfully`);
 
         setDocuments((prev) =>
@@ -281,15 +322,16 @@ export default function KnowledgeBasePage() {
                   status:
                     result.status === "success" ? "completed" : result.status,
                   source: "upload" as const,
+                  product: productName,
                   minio_key: null,
                   created_at: doc.created_at,
                 }
               : doc
           )
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
         toast.error(
-          `Failed to ingest ${file.name}: ${error.message || "Unknown Error"}`
+          `Failed to ingest ${file.name}: ${getErrorMessage(error, "Unknown Error")}`
         );
         setDocuments((prev) =>
           prev.map((doc) =>
@@ -300,6 +342,7 @@ export default function KnowledgeBasePage() {
     }
 
     await loadDocuments(true);
+    await loadProducts();
     setIsUploading(false);
   };
 
@@ -331,8 +374,8 @@ export default function KnowledgeBasePage() {
       }
 
       await loadDocuments(true);
-    } catch (error: any) {
-      toast.error(`Sync failed: ${error.message || "Unknown error"}`);
+    } catch (error: unknown) {
+      toast.error(`Sync failed: ${getErrorMessage(error)}`);
     } finally {
       setIsSyncing(false);
     }
@@ -346,9 +389,9 @@ export default function KnowledgeBasePage() {
       setPendingDelete(null);
       toast.success(`Deleted "${doc.filename}" and its vector chunks`);
       await loadDocuments(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        `Failed to delete ${doc.filename}: ${error.message || "Unknown error"}`
+        `Failed to delete ${doc.filename}: ${getErrorMessage(error)}`
       );
     } finally {
       setIsDeleting(false);
@@ -369,8 +412,8 @@ export default function KnowledgeBasePage() {
         toast.success(`Deleted ${result.deleted} documents successfully`);
       }
       await loadDocuments(true);
-    } catch (error: any) {
-      toast.error(`Bulk delete failed: ${error.message || "Unknown error"}`);
+    } catch (error: unknown) {
+      toast.error(`Bulk delete failed: ${getErrorMessage(error)}`);
     } finally {
       setIsBulkDeleting(false);
     }
@@ -482,6 +525,29 @@ export default function KnowledgeBasePage() {
         <h2 className="text-sm font-medium text-foreground">
           Upload Documents
         </h2>
+        <div className="grid gap-2 rounded-xl border bg-muted/20 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">
+              Product Name <span className="text-destructive">*</span>
+            </label>
+            <ProductCombobox
+              value={uploadProduct}
+              onChange={setUploadProduct}
+              onKnownChange={setUploadProductKnown}
+              placeholder="Choose a product, or type a new one"
+              disabled={isUploading}
+            />
+            {uploadProduct.trim() && !uploadProductKnown ? (
+              <p className="text-xs text-amber-600">
+                This is a new product. It will be added when documents are uploaded.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Documents uploaded below will be used as RAG references for this product.
+              </p>
+            )}
+          </div>
+        </div>
         <FileUpload
           onDrop={handleDrop}
           accept={{
@@ -559,22 +625,39 @@ export default function KnowledgeBasePage() {
 
       {/* File Table Section */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-medium text-foreground">
             Ingested Files
           </h2>
-          <span className="text-xs text-muted-foreground">
-            {totalCount} file{totalCount !== 1 ? "s" : ""}
-            {totalPages > 1 && (
-              <>
-                {" "}
-                &middot; Page {page} of {totalPages}
-              </>
-            )}
-          </span>
+          <div className="flex items-center gap-2">
+            <select
+              value={productFilter}
+              onChange={(event) => {
+                setProductFilter(event.target.value);
+                setPage(1);
+              }}
+              className="h-8 rounded-md border border-border bg-background px-3 text-xs"
+            >
+              <option value="">All products</option>
+              {products.map((product) => (
+                <option key={product.name} value={product.name}>
+                  {product.name} ({product.document_count})
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">
+              {totalCount} file{totalCount !== 1 ? "s" : ""}
+              {totalPages > 1 && (
+                <>
+                  {" "}
+                  &middot; Page {page} of {totalPages}
+                </>
+              )}
+            </span>
+          </div>
         </div>
 
-        {documents.length > 0 || debouncedSearch ? (
+        {documents.length > 0 || debouncedSearch || productFilter ? (
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/60" />
             <Input
@@ -593,7 +676,7 @@ export default function KnowledgeBasePage() {
               Loading documents...
             </p>
           </div>
-        ) : totalCount === 0 && !debouncedSearch ? (
+        ) : totalCount === 0 && !debouncedSearch && !productFilter ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/20 py-12 text-center">
             <FileIcon className="mb-3 size-8 text-muted-foreground/40" />
             <p className="text-sm text-muted-foreground">
@@ -603,11 +686,11 @@ export default function KnowledgeBasePage() {
               Upload files above or sync from MinIO to get started.
             </p>
           </div>
-        ) : documents.length === 0 && debouncedSearch ? (
+        ) : documents.length === 0 && (debouncedSearch || productFilter) ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/20 py-12 text-center">
             <Search className="mb-3 size-6 text-muted-foreground/40" />
             <p className="text-sm text-muted-foreground">
-              No files matching &quot;{searchQuery}&quot;
+              No files matching the current filters
             </p>
             <button
               type="button"
@@ -644,6 +727,7 @@ export default function KnowledgeBasePage() {
                       currentDir={sortDir}
                       onSort={handleSort}
                     />
+                    <TableHead>Product</TableHead>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
@@ -685,6 +769,11 @@ export default function KnowledgeBasePage() {
                               )}
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {doc.product || "Unassigned"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge

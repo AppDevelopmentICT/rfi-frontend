@@ -96,6 +96,10 @@ export async function getRfiTimeline(documentId: string): Promise<RFITimelineEnt
   return data;
 }
 
+export async function softDeleteRfiDocument(documentId: string): Promise<void> {
+  await apiClient.delete(`/v1/rfi/${documentId}`);
+}
+
 // ---------------------------------------------------------------------------
 // POST /v1/rfi/auto-fill — upload Excel, get filled .xlsx as blob (exact server output)
 // ---------------------------------------------------------------------------

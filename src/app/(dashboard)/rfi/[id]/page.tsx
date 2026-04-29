@@ -91,9 +91,10 @@ export default function RfiDetailPage() {
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (globalThis.document.visibilityState !== "visible") return;
       loadDocument().catch(() => {});
       loadTimeline().catch(() => {});
-    }, 8000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [loadDocument, loadTimeline]);
 

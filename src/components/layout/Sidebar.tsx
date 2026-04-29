@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   HelpCircle,
   ShieldCheck,
+  Trash2,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -222,6 +223,18 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
               >
                 <Users className="size-4" />
                 Users
+              </Link>
+              <Link
+                href="/admin/trash"
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
+                  pathname.startsWith("/admin/trash")
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground"
+                )}
+              >
+                <Trash2 className="size-4" />
+                Trash &amp; Recover
               </Link>
             </div>
           )}

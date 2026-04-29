@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { pb } from "@/lib/pocketbase";
 
 interface WSMessage {
-  type: "chunk" | "complete" | "error";
+  type: "chunk" | "complete" | "error" | "warning" | "info";
   content?: string;
   fullContent?: string;
   message?: string;
@@ -15,32 +15,143 @@ interface UseRFPStreamOptions {
   onChunk?: (chunk: string) => void;
   onComplete?: (fullContent: string) => void;
   onError?: (message: string) => void;
+  onWarning?: (message: string) => void;
+  onStart?: () => void;
 }
 
-function authHeaders(): HeadersInit {
-  const t = pb.authStore.token;
-  return {
-    "Content-Type": "application/json",
-    ...(t ? { Authorization: `Bearer ${t}` } : {}),
-  };
+function resolveWsBase(): string {
+  const explicit = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || "http://127.0.0.1:8000/api";
+  if (/^https?:\/\//i.test(apiUrl)) {
+    return apiUrl
+      .replace(/^http/i, (m) => (m.toLowerCase() === "https" ? "wss" : "ws"))
+      .replace(/\/api\/?$/i, "")
+      .replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}`;
+  }
+  return "ws://127.0.0.1:8000";
 }
 
 export function useRFPStream(options?: UseRFPStreamOptions) {
   const [isStreaming, setIsStreaming] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const fullBufferRef = useRef<string>("");
 
-  const cancel = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
+
+  const cleanup = useCallback(() => {
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {
+        // ignore close errors
+      }
+      wsRef.current = null;
     }
     setIsStreaming(false);
   }, []);
 
+  const cancel = useCallback(() => {
+    cleanup();
+  }, [cleanup]);
+
+  const sendPayload = useCallback(
+    (payload: Record<string, unknown>) => {
+      const token = pb.authStore.token;
+      if (!token) {
+        toast.error("Sign in required.");
+        return;
+      }
+      cleanup();
+
+      fullBufferRef.current = "";
+      setIsStreaming(true);
+      optionsRef.current?.onStart?.();
+
+      const base = resolveWsBase();
+      const url = `${base}/api/v1/rfp/ws/generate-technical?token=${encodeURIComponent(token)}`;
+
+      let opened = false;
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.addEventListener("open", () => {
+        opened = true;
+        ws.send(JSON.stringify(payload));
+      });
+
+      ws.addEventListener("message", (event: MessageEvent) => {
+        const raw = typeof event.data === "string" ? event.data : "";
+        if (!raw) return;
+        let msg: WSMessage | null = null;
+        try {
+          msg = JSON.parse(raw) as WSMessage;
+        } catch {
+          msg = null;
+        }
+        if (!msg) return;
+
+        switch (msg.type) {
+          case "chunk":
+            if (typeof msg.content === "string") {
+              fullBufferRef.current += msg.content;
+              optionsRef.current?.onChunk?.(msg.content);
+            }
+            break;
+          case "complete": {
+            const full = msg.fullContent ?? fullBufferRef.current;
+            optionsRef.current?.onComplete?.(full);
+            try {
+              ws.close();
+            } catch {
+              // ignore
+            }
+            break;
+          }
+          case "warning":
+            optionsRef.current?.onWarning?.(msg.message || "Warning");
+            break;
+          case "error":
+            optionsRef.current?.onError?.(msg.message || "Generation error");
+            toast.error(msg.message || "Generation error");
+            try {
+              ws.close();
+            } catch {
+              // ignore
+            }
+            break;
+          case "info":
+          default:
+            // Informational frames; ignore
+            break;
+        }
+      });
+
+      ws.addEventListener("error", () => {
+        optionsRef.current?.onError?.("Failed to connect to generation service");
+        if (!opened) {
+          toast.error("Could not reach the AI service. Is the backend running?");
+        }
+        cleanup();
+      });
+
+      ws.addEventListener("close", () => {
+        wsRef.current = null;
+        setIsStreaming(false);
+      });
+    },
+    [cleanup],
+  );
+
   const generate = useCallback(
-    async (
+    (
       product: string,
       extras?: {
         projectName?: string;
@@ -48,154 +159,25 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
         additionalContext?: string;
       },
     ) => {
-      if (!pb.authStore.token) {
-        toast.error("Sign in required.");
-        return;
-      }
-      cancel();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      setIsStreaming(true);
-
-      try {
-        const res = await fetch("/api/v1/rfp/generate-technical", {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ product, rfp: true, ...extras }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok || !res.body) {
-          throw new Error(`Request failed: ${res.status}`);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const msg: WSMessage = JSON.parse(line);
-              switch (msg.type) {
-                case "chunk":
-                  if (msg.content) optionsRef.current?.onChunk?.(msg.content);
-                  break;
-                case "complete":
-                  if (msg.fullContent)
-                    optionsRef.current?.onComplete?.(msg.fullContent);
-                  break;
-                case "error":
-                  optionsRef.current?.onError?.(msg.message || "Unknown error");
-                  toast.error(msg.message || "Generation error");
-                  break;
-              }
-            } catch {
-              // skip malformed line
-            }
-          }
-        }
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          toast.error("Failed to connect to generation service");
-          optionsRef.current?.onError?.("Connection failed");
-        }
-      } finally {
-        setIsStreaming(false);
-        abortRef.current = null;
-      }
+      sendPayload({ product, rfp: true, ...extras });
     },
-    [cancel],
+    [sendPayload],
   );
 
   const adjust = useCallback(
-    async (product: string, content: string, additionalContext: string) => {
-      if (!pb.authStore.token) {
-        toast.error("Sign in required.");
-        return;
-      }
-      cancel();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      setIsStreaming(true);
-
-      try {
-        const res = await fetch("/api/v1/rfp/generate-technical", {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({
-            product,
-            rfp: true,
-            adjust: true,
-            content,
-            additionalContext,
-          }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok || !res.body) {
-          throw new Error(`Request failed: ${res.status}`);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const msg: WSMessage = JSON.parse(line);
-              switch (msg.type) {
-                case "chunk":
-                  if (msg.content) optionsRef.current?.onChunk?.(msg.content);
-                  break;
-                case "complete":
-                  if (msg.fullContent)
-                    optionsRef.current?.onComplete?.(msg.fullContent);
-                  break;
-                case "error":
-                  optionsRef.current?.onError?.(msg.message || "Unknown error");
-                  toast.error(msg.message || "Generation error");
-                  break;
-              }
-            } catch {
-              // skip malformed line
-            }
-          }
-        }
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          toast.error("Failed to connect to generation service");
-          optionsRef.current?.onError?.("Connection failed");
-        }
-      } finally {
-        setIsStreaming(false);
-        abortRef.current = null;
-      }
+    (product: string, content: string, additionalContext: string) => {
+      sendPayload({
+        product,
+        rfp: true,
+        adjust: true,
+        content,
+        additionalContext,
+      });
     },
-    [cancel],
+    [sendPayload],
   );
 
-  return {
-    isStreaming,
-    generate,
-    adjust,
-    cancel,
-  };
+  useEffect(() => () => cleanup(), [cleanup]);
+
+  return { isStreaming, generate, adjust, cancel };
 }

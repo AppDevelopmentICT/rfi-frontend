@@ -23,12 +23,14 @@ export interface KBDocument {
   filename: string;
   status: string;
   source: "upload" | "minio";
+  product?: string | null;
   minio_key: string | null;
   created_at: string | null;
 }
 
 export interface ListDocumentsParams {
   search?: string;
+  product?: string;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
   page?: number;
@@ -49,8 +51,14 @@ export interface DeleteDocumentResponse {
   chunks_deleted: number;
 }
 
+export interface KBProduct {
+  name: string;
+  document_count: number;
+}
+
 export async function ingestKnowledgeDocument(
-  file: File
+  file: File,
+  product: string
 ): Promise<IngestDocumentResponse> {
   const isMock = process.env.NEXT_PUBLIC_MOCK_API === "true";
   
@@ -65,6 +73,7 @@ export async function ingestKnowledgeDocument(
 
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("product", product);
 
   const { data } = await apiClient.post<IngestDocumentResponse>(
     "/v1/knowledge/ingest",
@@ -88,6 +97,7 @@ export async function listKnowledgeDocuments(
   const { data } = await apiClient.get<ListDocumentsResponse>("/v1/knowledge/documents", {
     params: {
       search: params?.search || undefined,
+      product: params?.product || undefined,
       sort_by: params?.sort_by || "created_at",
       sort_dir: params?.sort_dir || "desc",
       page: params?.page || 1,
@@ -95,6 +105,11 @@ export async function listKnowledgeDocuments(
     },
     timeout: 15_000,
   });
+  return data;
+}
+
+export async function listKnowledgeProducts(): Promise<KBProduct[]> {
+  const { data } = await apiClient.get<KBProduct[]>("/v1/knowledge/products");
   return data;
 }
 

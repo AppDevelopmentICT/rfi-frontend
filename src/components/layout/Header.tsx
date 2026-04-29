@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Menu, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleClear = () => {
@@ -24,7 +26,14 @@ export function Header({ onMenuClick }: HeaderProps) {
       </Button>
 
       <div className="flex flex-1 items-center justify-start">
-        <form className="relative w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
+        <form
+          className="relative w-full max-w-md"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = searchQuery.trim();
+            if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
+          }}
+        >
           <Search className="absolute left-3 top-1/2 mt-[-8px] size-4 text-muted-foreground" />
           <Input
             type="text"
