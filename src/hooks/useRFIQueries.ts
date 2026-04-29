@@ -8,7 +8,6 @@ import {
   type AutoFillResult,
   type UploadRfiResponse,
 } from "@/services/rfi.service";
-import type { ExcelData } from "@/types/excel";
 
 export function useReadExcelMutation() {
   return useMutation<UploadRfiResponse, Error, File>({

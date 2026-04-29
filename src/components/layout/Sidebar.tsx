@@ -11,6 +11,8 @@ import {
   Settings,
   LayoutDashboard,
   HelpCircle,
+  ShieldCheck,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -66,7 +68,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
             updateJob(job.id, "failed");
             toast.error(`RFI Generation failed: ${job.filename}`);
           }
-        } catch (e) {
+        } catch {
           // ignore transient errors
         }
       }
@@ -85,10 +87,13 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         .toUpperCase()
     : user?.email?.[0]?.toUpperCase();
 
+  const isAdmin = !!user?.is_admin;
+
   const railItems = [
     { icon: LayoutDashboard, label: "Home", href: "/" },
     { icon: Database, label: "Knowledge Base", href: "/knowledge-base" },
     { icon: Files, label: "Documents", href: "/documents" },
+    ...(isAdmin ? [{ icon: ShieldCheck, label: "Audit Log", href: "/admin/audit-log" }] : []),
   ];
 
   const bottomRailItems = [
@@ -189,6 +194,38 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         <Separator className="bg-border/50 mx-3 w-auto" />
 
         <ScrollArea className="flex-1 px-3 py-4">
+          {isAdmin && (
+            <div className="mb-6 flex flex-col gap-1">
+              <p className="px-2 pb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                Admin
+              </p>
+              <Link
+                href="/admin/audit-log"
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
+                  pathname.startsWith("/admin/audit-log")
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground"
+                )}
+              >
+                <ShieldCheck className="size-4" />
+                Audit Log
+              </Link>
+              <Link
+                href="/admin/users"
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
+                  pathname.startsWith("/admin/users")
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground"
+                )}
+              >
+                <Users className="size-4" />
+                Users
+              </Link>
+            </div>
+          )}
+
           {activeJobs.length > 0 && (
             <div className="flex flex-col gap-1 mb-6">
               <p className="px-2 pb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">
@@ -202,7 +239,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                     onClick={() => {
                       if (job.status !== "failed") {
                         useRFIStore.setState({ fileName: job.filename });
-                        router.push("/rfi/viewer");
+                        router.push(`/rfi/${job.id}`);
                       }
                     }}
                   >
@@ -277,7 +314,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                 onClick={async () => {
                   try {
                     await logCustomEvent("auth.logout", "user");
-                  } catch (e) {}
+                  } catch {}
                   signOut();
                   window.location.href = "/login";
                 }}

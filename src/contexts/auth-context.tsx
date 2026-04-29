@@ -12,11 +12,14 @@ import {
 import Cookies from "js-cookie";
 
 import { PB_AUTH_COOKIE } from "@/constants/auth";
+import { apiClient } from "@/lib/axios";
 import { pb } from "@/lib/pocketbase";
 import { clearAuthIfWrongCompanyDomain } from "@/lib/clear-invalid-auth";
 import type { RecordModel } from "pocketbase";
 
-type AuthModel = RecordModel;
+type AuthModel = RecordModel & {
+  is_admin?: boolean;
+};
 
 type AuthContextValue = {
   user: AuthModel | null;
@@ -46,10 +49,28 @@ export function PocketBaseAuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
+  const hydrateAdminProfile = useCallback(async () => {
+    if (!pb.authStore.token || !pb.authStore.record) {
+      setUser(pb.authStore.record as AuthModel | null);
+      return;
+    }
+
+    try {
+      const { data } = await apiClient.get<{ is_admin: boolean }>("/v1/auth/me");
+      setUser({
+        ...(pb.authStore.record as AuthModel),
+        is_admin: data.is_admin,
+      });
+    } catch {
+      setUser(pb.authStore.record as AuthModel | null);
+    }
+  }, []);
+
   useEffect(() => {
     clearAuthIfWrongCompanyDomain();
 
-    setUser(pb.authStore.record);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    hydrateAdminProfile();
     setToken(pb.authStore.token);
     syncAuthCookie(pb.authStore.token);
     setReady(true);
@@ -57,11 +78,11 @@ export function PocketBaseAuthProvider({ children }: { children: ReactNode }) {
     return pb.authStore.onChange(() => {
       clearAuthIfWrongCompanyDomain();
 
-      setUser(pb.authStore.record);
       setToken(pb.authStore.token);
       syncAuthCookie(pb.authStore.token);
+      hydrateAdminProfile();
     });
-  }, []);
+  }, [hydrateAdminProfile]);
 
   const signOut = useCallback(() => {
     pb.authStore.clear();

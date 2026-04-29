@@ -1,21 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useExcelStore } from "@/store/useExcelStore";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { useUpdateCellMutation } from "@/hooks/useRFIQueries";
 
 interface ExcelTableProps {
   isGenerated?: boolean;
   documentId?: string;
+  readOnly?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function ExcelTable({ isGenerated = false, documentId }: ExcelTableProps) {
+export function ExcelTable({
+  isGenerated = false,
+  readOnly = false,
+  onDirtyChange,
+}: ExcelTableProps) {
   const excelData = useExcelStore((s) => s.excelData);
   const activeSheet = useExcelStore((s) => s.activeSheet);
   const setActiveSheet = useExcelStore((s) => s.setActiveSheet);
-  const { mutate: updateCell } = useUpdateCellMutation();
+  const updateLocalCell = useExcelStore((s) => s.updateCell);
 
   if (!excelData) return null;
 
@@ -94,21 +98,17 @@ export function ExcelTable({ isGenerated = false, documentId }: ExcelTableProps)
                         isEmpty
                           ? "bg-amber-500/5 text-muted-foreground italic"
                           : "text-foreground",
-                        isGenerated ? "hover:bg-muted cursor-text" : "truncate"
+                        isGenerated && !readOnly ? "hover:bg-muted cursor-text" : "truncate",
+                        readOnly && "cursor-not-allowed bg-muted/20"
                       )}
-                      contentEditable={isGenerated}
+                      contentEditable={isGenerated && !readOnly}
                       suppressContentEditableWarning={true}
                       onBlur={(e) => {
-                        if (!isGenerated || !documentId) return;
+                        if (!isGenerated || readOnly) return;
                         const newValue = e.target.innerText;
                         if (newValue !== String(value || "")) {
-                          updateCell({
-                            documentId,
-                            sheet: activeSheet,
-                            rowIdx,
-                            column: header,
-                            value: newValue
-                          });
+                          updateLocalCell(activeSheet, rowIdx, header, newValue);
+                          onDirtyChange?.(true);
                         }
                       }}
                       title={isEmpty ? "(empty)" : String(value)}

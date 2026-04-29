@@ -1,29 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDashboardStats, getDashboardHistory, DashboardStats, AuditLogEntry } from "@/services/dashboard.service";
+import Link from "next/link";
+import { Activity, Download, FileClock, FileSpreadsheet, Sparkles } from "lucide-react";
+
+import {
+  getDashboardHistory,
+  getDashboardStats,
+  type AuditLogEntry,
+  type DashboardStats,
+} from "@/services/dashboard.service";
+import {
+  exportRfiExcel,
+  listMyRfiDocuments,
+  type RFIProjectResponse,
+} from "@/services/rfi.service";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileSpreadsheet, Activity, Sparkles, FileClock } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { RelativeTime } from "@/components/shared/RelativeTime";
+import { StatCard } from "@/components/shared/StatCard";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn } from "@/lib/utils";
 
 export default function HomePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [history, setHistory] = useState<AuditLogEntry[]>([]);
+  const [documents, setDocuments] = useState<RFIProjectResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [statsData, historyData] = await Promise.all([
+        const [statsData, historyData, docsData] = await Promise.all([
           getDashboardStats(),
-          getDashboardHistory()
+          getDashboardHistory(),
+          listMyRfiDocuments(),
         ]);
         setStats(statsData);
         setHistory(historyData);
-      } catch (err) {
-        console.error("Failed to load dashboard data", err);
+        setDocuments(docsData);
       } finally {
         setIsLoading(false);
       }
@@ -33,116 +56,157 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8">
-        <p className="text-muted-foreground animate-pulse">Loading dashboard...</p>
+      <div className="flex flex-1 items-center justify-center p-6">
+        <p className="animate-pulse text-muted-foreground">Loading dashboard...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 space-y-8 p-8 max-w-6xl mx-auto w-full">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+    <div className="flex-1 space-y-6 px-6 py-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Review your generated RFI documents and recent activity.
+          </p>
+        </div>
+        <Link href="/rfi/upload">
+          <Button>Upload RFI</Button>
+        </Link>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="relative overflow-hidden border-none shadow-md transition-all hover:shadow-lg">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent pointer-events-none" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-200">Total RFI Uploaded</CardTitle>
-            <div className="rounded-full bg-blue-100 p-2 dark:bg-blue-900/30">
-              <FileSpreadsheet className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-blue-950 dark:text-blue-100">{stats?.total_rfi || 0}</div>
-            <p className="text-xs font-medium text-blue-600/70 mt-1 dark:text-blue-400/70">Original files uploaded</p>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden border-none shadow-md transition-all hover:shadow-lg">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-transparent pointer-events-none" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-200">RFI Generated</CardTitle>
-            <div className="rounded-full bg-purple-100 p-2 dark:bg-purple-900/30">
-              <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-purple-950 dark:text-purple-100">{stats?.generated_rfi || 0}</div>
-            <p className="text-xs font-medium text-purple-600/70 mt-1 dark:text-purple-400/70">Auto-filled responses</p>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden border-none shadow-md transition-all hover:shadow-lg">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-emerald-900 dark:text-emerald-200">Active Documents</CardTitle>
-            <div className="rounded-full bg-emerald-100 p-2 dark:bg-emerald-900/30">
-              <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-emerald-950 dark:text-emerald-100">{stats?.active_documents || 0}</div>
-            <p className="text-xs font-medium text-emerald-600/70 mt-1 dark:text-emerald-400/70">Documents in the system</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <StatCard
+          title="Total RFI Uploaded"
+          value={stats?.total_rfi || 0}
+          description="Files processed by your account"
+          icon={FileSpreadsheet}
+        />
+        <StatCard
+          title="RFI Generated"
+          value={stats?.generated_rfi || 0}
+          description="Completed auto-filled workbooks"
+          icon={Sparkles}
+        />
+        <StatCard
+          title="Active Documents"
+          value={stats?.active_documents || 0}
+          description="Documents available in the system"
+          icon={Activity}
+        />
       </div>
 
-      <div className="grid gap-4 grid-cols-1">
-        <Card className="col-span-1">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="border-border/70 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileClock className="h-5 w-5" /> Activity History
+              <FileSpreadsheet className="size-5" />
+              My Generated RFI
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {documents.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-8 text-center">
+                <p className="font-medium">No generated RFI yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Upload a workbook and run auto-fill to see it here.
+                </p>
+                <Link href="/rfi/upload">
+                  <Button className="mt-4" size="sm">Upload RFI</Button>
+                </Link>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Filename</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((doc) => (
+                    <TableRow key={doc.documentId}>
+                      <TableCell className="font-medium">
+                        <Link className="hover:underline" href={`/rfi/${doc.documentId}`}>
+                          {doc.fileName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={doc.status} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <RelativeTime iso={doc.created_at} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Link href={`/rfi/${doc.documentId}`}>
+                            <Button variant="outline" size="sm">Open</Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={doc.status !== "completed"}
+                            onClick={() => exportRfiExcel(doc.documentId)}
+                          >
+                            <Download className="size-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileClock className="size-5" />
+              Activity History
             </CardTitle>
           </CardHeader>
           <CardContent>
             {history.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">No activity found.</p>
+              <p className="py-6 text-center text-sm text-muted-foreground">No activity found.</p>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-2">
                 {history.map((log) => {
-                  const isAuth = log.action.includes("auth");
                   const isUpload = log.action.includes("upload");
-                  const isGenerate = log.action.includes("autofill");
-                  const isUpdate = log.action.includes("update");
-                  const isExport = log.action.includes("export");
-                  
+                  const isGenerate = log.action.includes("autofill") || log.action.includes("generate");
+                  const isUpdate = log.action.includes("update") || log.action.includes("save");
                   return (
-                    <div key={log.id} className="flex items-center group rounded-lg p-2 transition-colors hover:bg-muted/50">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                        {isAuth && <Activity className="h-4 w-4 text-primary" />}
-                        {isUpload && <FileSpreadsheet className="h-4 w-4 text-blue-500" />}
-                        {isGenerate && <Sparkles className="h-4 w-4 text-purple-500" />}
-                        {isUpdate && <Activity className="h-4 w-4 text-emerald-500" />}
-                        {isExport && <FileSpreadsheet className="h-4 w-4 text-green-500" />}
-                        {(!isAuth && !isUpload && !isGenerate && !isUpdate && !isExport) && <FileClock className="h-4 w-4 text-muted-foreground" />}
+                    <div
+                      key={log.id}
+                      className="flex items-center gap-3 rounded-lg border bg-card/50 p-3"
+                    >
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                        {isUpload ? (
+                          <FileSpreadsheet className="size-4 text-blue-600" />
+                        ) : isGenerate ? (
+                          <Sparkles className="size-4 text-purple-600" />
+                        ) : isUpdate ? (
+                          <Activity className="size-4 text-emerald-600" />
+                        ) : (
+                          <FileClock className="size-4 text-muted-foreground" />
+                        )}
                       </div>
-                      <div className="ml-4 space-y-1.5 flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium leading-none truncate">
-                            {log.details?.filename ? log.details.filename : `System Resource`}
-                          </p>
-                          <Badge 
-                            variant="secondary" 
-                            className={cn("text-[10px] px-1.5 py-0 uppercase tracking-wider", 
-                              isAuth && "bg-slate-100 text-slate-700 hover:bg-slate-100 border-slate-200",
-                              isUpload && "bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200",
-                              isGenerate && "bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200",
-                              isUpdate && "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200",
-                              isExport && "bg-green-100 text-green-700 hover:bg-green-100 border-green-200"
-                            )}
-                          >
-                            {log.action.replace("rfi.", "").replace("_", " ")}
-                          </Badge>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {log.details?.filename || log.action.replace("rfi.", "RFI ")}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {log.resource_type === "user" ? "User authentication event" : "Document modified"}
+                          {log.action.replace("rfi.", "").replace(/_/g, " ")}
                         </p>
                       </div>
-                      <div className="ml-auto font-medium text-xs text-muted-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                      </div>
+                      <RelativeTime
+                        iso={log.created_at}
+                        className={cn("shrink-0 text-xs text-muted-foreground")}
+                      />
                     </div>
                   );
                 })}

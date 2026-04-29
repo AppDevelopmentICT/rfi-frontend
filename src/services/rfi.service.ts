@@ -23,13 +23,75 @@ export async function uploadAndReadExcel(file: File): Promise<UploadRfiResponse>
 
 export interface RFIProjectResponse {
   documentId: string;
+  id?: number;
   fileName: string;
+  filename?: string;
   excelData: ExcelData;
   status: string;
+  created_at?: string;
+  updated_at?: string;
+  user?: RFIUser | null;
+  uploaded_by?: RFIUser | null;
+  editing_user?: RFIUser | null;
+  lock_acquired_at?: string | null;
+  is_locked_by_other?: boolean;
+  is_lock_held_by_me?: boolean;
+}
+
+export interface RFIUser {
+  id: number;
+  email: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  is_admin?: boolean;
+}
+
+export interface RFITimelineEntry {
+  id: number;
+  user: RFIUser | null;
+  action: string;
+  resource_type: string;
+  details: Record<string, unknown>;
+  created_at: string;
 }
 
 export async function getRfiDocument(documentId: string): Promise<RFIProjectResponse> {
   const { data } = await apiClient.get<RFIProjectResponse>(`/v1/rfi/${documentId}`);
+  return data;
+}
+
+export async function listRfiDocuments(): Promise<RFIProjectResponse[]> {
+  const { data } = await apiClient.get<RFIProjectResponse[]>("/v1/rfi/list");
+  return data;
+}
+
+export async function listMyRfiDocuments(): Promise<RFIProjectResponse[]> {
+  const { data } = await apiClient.get<RFIProjectResponse[]>("/v1/rfi/list/mine");
+  return data;
+}
+
+export async function lockRfiDocument(documentId: string): Promise<RFIProjectResponse> {
+  const { data } = await apiClient.post<RFIProjectResponse>(`/v1/rfi/${documentId}/lock`);
+  return data;
+}
+
+export async function unlockRfiDocument(documentId: string): Promise<RFIProjectResponse> {
+  const { data } = await apiClient.delete<RFIProjectResponse>(`/v1/rfi/${documentId}/lock`);
+  return data;
+}
+
+export async function saveRfiDocument(
+  documentId: string,
+  excelData: ExcelData
+): Promise<RFIProjectResponse> {
+  const { data } = await apiClient.post<RFIProjectResponse>(`/v1/rfi/${documentId}/save`, {
+    excelData,
+  });
+  return data;
+}
+
+export async function getRfiTimeline(documentId: string): Promise<RFITimelineEntry[]> {
+  const { data } = await apiClient.get<RFITimelineEntry[]>(`/v1/rfi/${documentId}/timeline`);
   return data;
 }
 

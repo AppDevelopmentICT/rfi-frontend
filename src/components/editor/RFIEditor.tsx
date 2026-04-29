@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useRFIStore } from "@/store/useRFIStore";
 import { useExcelStore } from "@/store/useExcelStore";
@@ -9,12 +10,36 @@ import { ExcelTable } from "@/components/editor/ExcelTable";
 import { useAutoFillMutation } from "@/hooks/useRFIQueries";
 import { exportRfiExcel } from "@/services/rfi.service";
 import { useState } from "react";
+import type { RFIProjectResponse } from "@/services/rfi.service";
 
 interface RFIEditorProps {
   rfiId: string;
+  document?: RFIProjectResponse | null;
+  readOnly?: boolean;
+  lockMessage?: string | null;
+  isEditing?: boolean;
+  isLockedByOther?: boolean;
+  canForceUnlock?: boolean;
+  onBeginEdit?: () => Promise<void> | void;
+  onSaveChanges?: () => Promise<void> | void;
+  onCancelEdit?: () => Promise<void> | void;
+  onForceUnlock?: () => Promise<void> | void;
 }
 
-export function RFIEditor({ rfiId }: RFIEditorProps) {
+export function RFIEditor({
+  rfiId,
+  document,
+  readOnly = false,
+  lockMessage,
+  isEditing = false,
+  isLockedByOther = false,
+  canForceUnlock = false,
+  onBeginEdit,
+  onSaveChanges,
+  onCancelEdit,
+  onForceUnlock,
+}: RFIEditorProps) {
+  const router = useRouter();
   const file = useRFIStore((s) => s.file);
   const fileBase64 = useRFIStore((s) => s.fileBase64);
   const fileName = useRFIStore((s) => s.fileName);
@@ -26,6 +51,18 @@ export function RFIEditor({ rfiId }: RFIEditorProps) {
   
   const { mutate, isPending } = useAutoFillMutation();
   const [isExporting, setIsExporting] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   const handleAutoFillExcel = useCallback(async () => {
     let uploadFile = file;
@@ -35,8 +72,8 @@ export function RFIEditor({ rfiId }: RFIEditorProps) {
         const res = await fetch(fileBase64);
         const blob = await res.blob();
         uploadFile = new File([blob], fileName, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      } catch (e) {
-        console.error("Failed to reconstruct file from base64", e);
+      } catch {
+        console.error("Failed to reconstruct file from base64");
       }
     }
 
@@ -54,17 +91,30 @@ export function RFIEditor({ rfiId }: RFIEditorProps) {
           if (data.excelData) {
             setExcelData(data.excelData);
           }
+          if (data.documentId) {
+            router.push(`/rfi/${data.documentId}`);
+          }
         }
       }
     );
-  }, [file, fileBase64, fileName, mutate, setExcelData]);
+  }, [file, fileBase64, fileName, mutate, router, setExcelData]);
 
-  const handleSave = useCallback(() => {
-    toast.success("This feature is not available yet.");
-  }, []);
+  const handleSave = useCallback(async () => {
+    if (!onSaveChanges) return;
+    try {
+      setIsSaving(true);
+      await onSaveChanges();
+      setIsDirty(false);
+      toast.success("Changes saved.");
+    } catch {
+      toast.error("Failed to save changes.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [onSaveChanges]);
 
   const handleExport = useCallback(async () => {
-    const docId = activeJob?.id;
+    const docId = document?.documentId || activeJob?.id;
     if (!docId) {
       toast.error("You must auto-fill the document first before exporting.");
       return;
@@ -72,32 +122,52 @@ export function RFIEditor({ rfiId }: RFIEditorProps) {
     try {
       setIsExporting(true);
       await exportRfiExcel(docId);
-    } catch (e) {
+    } catch {
       toast.error("Failed to export Excel.");
     } finally {
       setIsExporting(false);
     }
-  }, [activeJob?.id]);
+  }, [activeJob?.id, document?.documentId]);
 
-  const displayTitle = activeJob?.filename || fileName || rfiId;
-  const isGenerating = isPending || activeJob?.status === "generating";
-  const isCompleted = activeJob?.status === "completed";
+  const displayTitle = document?.fileName || activeJob?.filename || fileName || rfiId;
+  const isGenerating = isPending || activeJob?.status === "generating" || document?.status === "generating";
+  const isCompleted = activeJob?.status === "completed" || document?.status === "completed";
+  const shouldShowGenerate = !document;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-muted/40" style={{ height: "calc(100dvh - 3.5rem)" }}>
       <EditorHeader
         title={`RFI Project - ${displayTitle}`}
         questionCount={0}
-        isGeneratingAll={isGenerating || isExporting}
+        isGeneratingAll={isGenerating || isExporting || isSaving}
         generateAllLabel="Auto-fill Excel"
-        generatingLabel={isExporting ? "Exporting..." : "Filling workbook..."}
+        generatingLabel={isSaving ? "Saving..." : isExporting ? "Exporting..." : "Filling workbook..."}
         onGenerateAll={handleAutoFillExcel}
         onSave={handleSave}
+        onEdit={onBeginEdit}
+        onCancel={onCancelEdit}
+        onForceUnlock={canForceUnlock ? onForceUnlock : undefined}
         onExport={handleExport}
+        showGenerate={shouldShowGenerate}
+        isEditing={isEditing}
+        isDirty={isDirty}
+        isLockedByOther={isLockedByOther}
       />
 
       <div className="flex-1 overflow-y-auto">
         <div className="w-full">
+          {lockMessage && (
+            <div className="sticky top-0 z-10 m-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+              <div className="font-semibold">Editing locked</div>
+              <p className="mt-1">{lockMessage}</p>
+            </div>
+          )}
+          {isEditing && (
+            <div className="m-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 shadow-sm">
+              <div className="font-semibold">You are editing this file</div>
+              <p className="mt-1">Other users cannot edit it until you click Save Changes or Cancel.</p>
+            </div>
+          )}
           {(!isCompleted && !isGenerating && !file && !fileBase64) && (
             <div className="rounded-lg border bg-background p-6 shadow-sm mb-6 m-6">
               <h2 className="text-base font-semibold">Ready to generate Excel response</h2>
@@ -141,7 +211,12 @@ export function RFIEditor({ rfiId }: RFIEditorProps) {
             </div>
           )}
           
-          <ExcelTable isGenerated={isCompleted} documentId={activeJob?.id} />
+          <ExcelTable
+            isGenerated={isCompleted}
+            documentId={document?.documentId || activeJob?.id}
+            readOnly={readOnly}
+            onDirtyChange={setIsDirty}
+          />
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@ interface ExcelStoreActions {
   setFile: (file: File) => void;
   setExcelData: (data: ExcelData) => void;
   setActiveSheet: (sheet: string) => void;
+  updateCell: (sheet: string, rowIdx: number, column: string, value: string) => void;
   setAutoFillState: (state: AutoFillState) => void;
   reset: () => void;
 }
@@ -41,6 +42,21 @@ export const useExcelStore = create<ExcelStore>()(
   },
 
   setActiveSheet: (sheet) => set({ activeSheet: sheet }),
+
+  updateCell: (sheet, rowIdx, column, value) =>
+    set((state) => {
+      if (!state.excelData?.[sheet]) return state;
+      const nextData = {
+        ...state.excelData,
+        [sheet]: {
+          ...state.excelData[sheet],
+          data: state.excelData[sheet].data.map((row, idx) =>
+            idx === rowIdx ? { ...row, [column]: value } : row
+          ),
+        },
+      };
+      return { excelData: nextData };
+    }),
 
   setAutoFillState: (autoFillState) => set({ autoFillState }),
 

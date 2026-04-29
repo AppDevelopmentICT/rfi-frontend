@@ -1,52 +1,168 @@
-/**
- * Document Library Page — `/documents`
- *
- * Unified repository for all RFI and RFP documents.
- * This page will list documents that have been created or uploaded
- * through the "New RFI" and "New RFP" workflows, replacing the
- * previous RFI-only library.
- *
- * ── Header ──────────────────────────────────────────────────
- * - Title: "Document Library"
- * - Description: brief explanation of what this page contains
- *
- * ── Toolbar / Filter Bar ────────────────────────────────────
- * - Search input: full-text search across document titles
- * - Filter tabs / toggle: "All" | "RFI" | "RFP"
- * - Sort dropdown: "Newest first" | "Oldest first" | "Name A-Z"
- * - "+ New Document" button (optional shortcut — redirects to
- *   New RFI or New RFP flow)
- *
- * ── Document Table / Card Grid ──────────────────────────────
- * Each document row or card shows:
- * - Document title / filename
- * - Type badge: "RFI" or "RFP" (color-coded)
- * - Status badge: "Draft" | "In Review" | "Submitted" | "Completed"
- * - Created date
- * - Last modified date
- *
- * ── Quick Actions (per document) ────────────────────────────
- * - View   — navigate to document detail page
- * - Edit   — open document in editor
- * - Delete — remove document (with confirmation dialog)
- * - Export — download as PDF / DOCX
- *
- * ── Empty State ─────────────────────────────────────────────
- * - Folders icon + "No documents yet"
- * - CTA button linking to "New RFI" or "New RFP"
- *
- * ── Pagination ──────────────────────────────────────────────
- * - Page controls at the bottom for large document lists
- */
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Search } from "lucide-react";
+
+import { RelativeTime } from "@/components/shared/RelativeTime";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { UserPill } from "@/components/shared/UserPill";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { listRfiDocuments, type RFIProjectResponse } from "@/services/rfi.service";
+import { cn } from "@/lib/utils";
+
+const filters = ["all", "generating", "completed", "failed"];
+
 export default function DocumentsPage() {
+  const [documents, setDocuments] = useState<RFIProjectResponse[]>([]);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setDocuments(await listRfiDocuments());
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return documents.filter((doc) => {
+      const matchesStatus = filter === "all" || doc.status === filter;
+      const matchesQuery =
+        !needle ||
+        doc.fileName.toLowerCase().includes(needle) ||
+        (doc.uploaded_by?.name || "").toLowerCase().includes(needle) ||
+        (doc.uploaded_by?.email || "").toLowerCase().includes(needle);
+      return matchesStatus && matchesQuery;
+    });
+  }, [documents, filter, query]);
+
   return (
-    <div className="flex flex-col gap-8 p-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Document Library</h1>
-        <p className="text-sm text-muted-foreground">
-          List of RFI and RFP documents will appear here soon.
-        </p>
+    <div className="flex-1 space-y-6 px-6 py-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Documents</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            All generated RFI documents, owners, and active editing locks.
+          </p>
+        </div>
+        <Link href="/rfi/upload">
+          <Button>New RFI</Button>
+        </Link>
       </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative max-w-md flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search filename or user..."
+                className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {filters.map((item) => (
+                <Button
+                  key={item}
+                  variant={filter === item ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter(item)}
+                  className="capitalize"
+                >
+                  {item}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <p className="p-8 text-center text-sm text-muted-foreground">Loading documents...</p>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed p-8 text-center">
+              <p className="font-medium">No matching documents</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Try changing the filter or upload a new RFI.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Filename</TableHead>
+                  <TableHead>Generated By</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Lock State</TableHead>
+                  <TableHead>Last Modified</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((doc) => {
+                  const editorName = doc.editing_user?.name || doc.editing_user?.email;
+                  return (
+                    <TableRow key={doc.documentId}>
+                      <TableCell className="font-medium">
+                        <Link href={`/rfi/${doc.documentId}`} className="hover:underline">
+                          {doc.fileName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <UserPill name={doc.uploaded_by?.name} email={doc.uploaded_by?.email} />
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={doc.status} />
+                      </TableCell>
+                      <TableCell>
+                        {editorName ? (
+                          <div className="flex items-center gap-2 text-sm text-amber-700">
+                            <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+                            Editing by {editorName}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Available</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <RelativeTime iso={doc.updated_at || doc.created_at} className="text-muted-foreground" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/rfi/${doc.documentId}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(doc.is_locked_by_other && "border-amber-200 text-amber-700")}
+                          >
+                            Open
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

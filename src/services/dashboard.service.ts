@@ -10,7 +10,7 @@ export interface AuditLogEntry {
   id: number;
   action: string;
   resource_type: string;
-  details: any;
+  details: Record<string, string | number | boolean | null | undefined>;
   created_at: string;
 }
 
@@ -24,6 +24,10 @@ export async function getDashboardHistory(limit: number = 20): Promise<AuditLogE
   return data;
 }
 
-export async function logCustomEvent(action: string, resource_type: string, details?: any): Promise<void> {
+export async function logCustomEvent(
+  action: string,
+  resource_type: string,
+  details?: Record<string, string | number | boolean | null | undefined>
+): Promise<void> {
   await apiClient.post("/v1/dashboard/log-event", { action, resource_type, details });
 }
