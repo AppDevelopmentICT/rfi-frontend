@@ -203,7 +203,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         projectRef.current = queued;
         setProject(queued);
         toast.info(`RFP generation moved to background: ${reason}`);
-        await refresh(true);
       } catch (error: unknown) {
         toast.error(getErrorMessage(error, "Could not queue background generation"));
       }
@@ -261,7 +260,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         projectRef.current = saved;
         setProject(saved);
         setIsEditing(false);
-        await refresh(true);
         toast.success("Response saved to project");
       } catch (error: unknown) {
         toast.error(getErrorMessage(error, "Generated content could not be saved"));
@@ -316,7 +314,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         editor.commands.setContent(released.content || "");
         editorHydrateRef.current = false;
       }
-      await refresh(true);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Could not release lock"));
     }
@@ -334,7 +331,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       setProject(saved);
       setIsEditing(false);
       setIsDirty(false);
-      await refresh(true);
       toast.success("Changes saved");
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Could not save changes"));
@@ -349,8 +345,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       const released = await releaseRfpLock(project.documentId);
       projectRef.current = released;
       setProject(released);
-      await refresh(true);
-      toast.success("Lock released");
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Could not release lock"));
     }

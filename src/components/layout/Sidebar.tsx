@@ -171,25 +171,46 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
           )}
         </div>
 
-        <div className="px-3 pb-4 flex flex-col gap-2">
-          <Link href="/rfi/upload">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2 border-dashed bg-transparent hover:bg-accent"
-            >
-              <Plus className="size-4 text-primary" />
-              <span className="text-sm">New RFI</span>
-            </Button>
-          </Link>
-          <Link href="/rfp/upload">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2 border-dashed bg-transparent hover:bg-accent"
-            >
-              <Plus className="size-4 text-primary" />
-              <span className="text-sm">New RFP</span>
-            </Button>
-          </Link>
+        <div className="px-3 pb-4 pt-2">
+          <div className="space-y-2">
+            <Link href="/rfi/upload" className="block group">
+              <div className="relative overflow-hidden rounded-lg border border-blue-200/50 bg-linear-to-br from-blue-50 to-blue-100/50 p-3.5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-blue-300/70 dark:from-blue-950/30 dark:to-blue-900/20 dark:border-blue-800/50 dark:hover:border-blue-700/70">
+                <div className="absolute -right-6 -top-6 size-20 rounded-full bg-blue-500/10 blur-2xl transition-all duration-300 group-hover:bg-blue-500/20" />
+                <div className="relative flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-transform duration-200 group-hover:scale-110 dark:bg-blue-500">
+                    <Plus className="size-4.5" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      New RFI
+                    </h3>
+                    <p className="mt-0.5 text-[11px] text-blue-700/80 dark:text-blue-300/70">
+                      Upload & auto-fill Excel
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/rfp/upload" className="block group">
+              <div className="relative overflow-hidden rounded-lg border border-purple-200/50 bg-linear-to-br from-purple-50 to-purple-100/50 p-3.5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-purple-300/70 dark:from-purple-950/30 dark:to-purple-900/20 dark:border-purple-800/50 dark:hover:border-purple-700/70">
+                <div className="absolute -right-6 -top-6 size-20 rounded-full bg-purple-500/10 blur-2xl transition-all duration-300 group-hover:bg-purple-500/20" />
+                <div className="relative flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-purple-600 text-white shadow-sm transition-transform duration-200 group-hover:scale-110 dark:bg-purple-500">
+                    <Plus className="size-4.5" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+                      New RFP
+                    </h3>
+                    <p className="mt-0.5 text-[11px] text-purple-700/80 dark:text-purple-300/70">
+                      Generate Chapter 3
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </div>
         </div>
 
         <Separator className="bg-border/50 mx-3 w-auto" />
