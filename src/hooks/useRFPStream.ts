@@ -15,6 +15,7 @@ interface UseRFPStreamOptions {
   onChunk?: (chunk: string) => void;
   onComplete?: (fullContent: string) => void;
   onError?: (message: string) => void;
+  onIncomplete?: (partialContent: string, reason: string) => void;
   onWarning?: (message: string) => void;
   onStart?: () => void;
 }
@@ -41,6 +42,8 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
   const fullBufferRef = useRef<string>("");
+  const settledRef = useRef(false);
+  const intentionalCloseRef = useRef(false);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -49,6 +52,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
   const cleanup = useCallback(() => {
     if (wsRef.current) {
       try {
+        intentionalCloseRef.current = true;
         wsRef.current.close();
       } catch {
         // ignore close errors
@@ -72,6 +76,8 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
       cleanup();
 
       fullBufferRef.current = "";
+      settledRef.current = false;
+      intentionalCloseRef.current = false;
       setIsStreaming(true);
       optionsRef.current?.onStart?.();
 
@@ -106,9 +112,11 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
             }
             break;
           case "complete": {
+            settledRef.current = true;
             const full = msg.fullContent ?? fullBufferRef.current;
             optionsRef.current?.onComplete?.(full);
             try {
+              intentionalCloseRef.current = true;
               ws.close();
             } catch {
               // ignore
@@ -119,9 +127,11 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
             optionsRef.current?.onWarning?.(msg.message || "Warning");
             break;
           case "error":
+            settledRef.current = true;
             optionsRef.current?.onError?.(msg.message || "Generation error");
             toast.error(msg.message || "Generation error");
             try {
+              intentionalCloseRef.current = true;
               ws.close();
             } catch {
               // ignore
@@ -135,6 +145,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
       });
 
       ws.addEventListener("error", () => {
+        settledRef.current = true;
         optionsRef.current?.onError?.("Failed to connect to generation service");
         if (!opened) {
           toast.error("Could not reach the AI service. Is the backend running?");
@@ -143,6 +154,12 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
       });
 
       ws.addEventListener("close", () => {
+        if (!settledRef.current && !intentionalCloseRef.current) {
+          optionsRef.current?.onIncomplete?.(
+            fullBufferRef.current,
+            "WebSocket closed before complete",
+          );
+        }
         wsRef.current = null;
         setIsStreaming(false);
       });

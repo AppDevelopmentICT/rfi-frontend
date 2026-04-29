@@ -57,7 +57,8 @@ export default function UploadRfpPage() {
         project_name: trimmedProjectName || undefined,
         project_description: trimmedProjectDescription || undefined,
       });
-      router.push(`/rfp/${encodeURIComponent(project.slug || String(project.id))}`);
+      const key = encodeURIComponent(project.slug || String(project.id));
+      router.push(project.created ? `/rfp/${key}?generate=1` : `/rfp/${key}`);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {

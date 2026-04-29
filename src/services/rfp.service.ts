@@ -29,6 +29,7 @@ export interface RFPProjectResponse {
   lock_acquired_at?: string | null;
   is_locked_by_other?: boolean;
   is_lock_held_by_me?: boolean;
+  created?: boolean;
 }
 
 export interface RFPTimelineEntry {
@@ -92,6 +93,21 @@ export async function appendRfpChat(
 
 export async function getRfpTimeline(projectKey: string): Promise<RFPTimelineEntry[]> {
   const { data } = await apiClient.get<RFPTimelineEntry[]>(`/v1/rfp/projects/${projectKey}/timeline`);
+  return data;
+}
+
+export async function queueRfpBackgroundGeneration(
+  projectKey: string,
+  payload: {
+    adjust?: boolean;
+    content?: string;
+    additionalContext?: string;
+  },
+): Promise<RFPProjectResponse> {
+  const { data } = await apiClient.post<RFPProjectResponse>(
+    `/v1/rfp/projects/${projectKey}/generate-background`,
+    payload,
+  );
   return data;
 }
 
