@@ -29,6 +29,7 @@ import Typography from "@tiptap/extension-typography";
 import { useRFPStore } from "@/store/useRFPStore";
 import { useRFPStream } from "@/hooks/useRFPStream";
 import { markdownToHtml } from "@/lib/markdown";
+import { pb } from "@/lib/pocketbase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -195,7 +196,12 @@ export function RFPTechnicalEditor({ rfpId }: RFPTechnicalEditorProps) {
     try {
       const res = await fetch("/api/v1/rfp/classify-adjust-prompt", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(pb.authStore.token
+            ? { Authorization: `Bearer ${pb.authStore.token}` }
+            : {}),
+        },
         body: JSON.stringify({ prompt }),
       });
       const data = await res.json();

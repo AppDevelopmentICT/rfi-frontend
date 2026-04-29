@@ -1,120 +1,185 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useEffect, useState } from "react";
+
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+
+import { pb } from "@/lib/pocketbase";
+import { ClientResponseError } from "pocketbase";
+
+import { isCompanyEmail } from "@/lib/company-email";
+
+const SHOW_PASSWORD_LOGIN =
+  process.env.NEXT_PUBLIC_SHOW_PASSWORD_LOGIN === "true";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [oauthBusy, setOauthBusy] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setIsLoading(true);
-
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-
-    if (result?.error) {
-      setIsLoading(false);
-      toast.error("Invalid credentials", {
-        description: "Please check your email and password.",
-      });
-      return;
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("denied") === "domain") {
+        toast.error("Access denied", {
+          description:
+            "Only company accounts (@infracom-tech.com) may use this app.",
+        });
+      }
+    } catch {
+      // ignore
     }
+  }, []);
 
-    router.push("/");
+  async function handleMicrosoft() {
+    setOauthBusy(true);
+    try {
+      await pb.collection("users").authWithOAuth2({ provider: "microsoft" });
+
+      const email = pb.authStore.record?.email as string | undefined;
+      if (!isCompanyEmail(email)) {
+        pb.authStore.clear();
+        toast.error("Access denied", {
+          description:
+            "Sign in with your company Microsoft account (@infracom-tech.com).",
+        });
+        return;
+      }
+
+      toast.success("Signed in");
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      const msg =
+        err instanceof ClientResponseError ? err.message : "OAuth failed";
+      const low = String(msg).toLowerCase();
+      if (!low.includes("autocancel") && !low.includes("abort")) {
+        toast.error("Microsoft sign-in failed", { description: msg });
+      }
+    } finally {
+      setOauthBusy(false);
+    }
   }
+
+  async function handlePasswordSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const email = String(fd.get("email") ?? "");
+    const password = String(fd.get("password") ?? "");
+
+    try {
+      await pb.collection("users").authWithPassword(email, password);
+
+      if (!isCompanyEmail(pb.authStore.record?.email)) {
+        pb.authStore.clear();
+        toast.error("Access denied", {
+          description:
+            "Only company accounts (@infracom-tech.com) may use this app.",
+        });
+        return;
+      }
+
+      toast.success("Signed in");
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      const msg =
+        err instanceof ClientResponseError
+          ? err.message
+          : "Please check your email and password.";
+      toast.error("Sign in failed", { description: msg });
+    }
+  }
+
+  const pocketBaseUrl =
+    process.env.NEXT_PUBLIC_POCKETBASE_URL ?? "http://127.0.0.1:8090";
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-8">
         <h2 className="text-2xl font-semibold tracking-tight text-[#0a1628]">
-          Welcome back
+          Sign in
         </h2>
         <p className="mt-1.5 text-sm text-[#64748b]">
-          Sign in to your workspace to continue
+          Use your InfraCom Microsoft account. In Entra ID, add redirect URI{" "}
+          <span className="break-all font-mono text-[11px] text-[#334155]">
+            {pocketBaseUrl.replace(/\/$/, "")}/api/oauth2-redirect
+          </span>
         </p>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="email" className="text-sm font-medium text-[#334155]">
-            Email address
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            disabled={isLoading}
-            className="h-11 border-[#e2e8f0] bg-[#f8fafc] focus:border-[#0ea5e9] focus:bg-white focus:ring-[#0ea5e9]/20 transition-colors"
-          />
-        </div>
+      <Button
+        type="button"
+        variant="outline"
+        className="mb-6 w-full h-11 border-[#e2e8f0]"
+        disabled={oauthBusy}
+        onClick={handleMicrosoft}
+      >
+        {oauthBusy ? (
+          <Loader2 className="size-4 animate-spin mr-2" />
+        ) : null}
+        Continue with Microsoft
+      </Button>
 
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-sm font-medium text-[#334155]">
-              Password
-            </Label>
-            <button
-              type="button"
-              className="text-xs font-medium text-[#0ea5e9] hover:text-[#0284c7] transition-colors"
-            >
-              Forgot password?
-            </button>
+      {SHOW_PASSWORD_LOGIN ? (
+        <>
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-[#e2e8f0]" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-[#94a3b8]">Dev — email</span>
+            </div>
           </div>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Enter your password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            disabled={isLoading}
-            className="h-11 border-[#e2e8f0] bg-[#f8fafc] focus:border-[#0ea5e9] focus:bg-white focus:ring-[#0ea5e9]/20 transition-colors"
-          />
-        </div>
 
-        <Button
-          type="submit"
-          size="lg"
-          disabled={isLoading}
-          className="mt-2 h-11 bg-[#0a1628] hover:bg-[#162d50] text-white font-medium transition-colors"
-        >
-          {isLoading && <Loader2 className="size-4 animate-spin mr-2" />}
-          {isLoading ? "Signing in..." : "Sign in"}
-        </Button>
-      </form>
+          <form onSubmit={handlePasswordSubmit} className="grid gap-4">
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@infracom-tech.com"
+              className="h-11 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-3 text-sm"
+            />
+            <input
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              placeholder="Password"
+              className="h-11 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-3 text-sm"
+            />
+            <Button
+              type="submit"
+              size="lg"
+              className="h-11 bg-[#0a1628] hover:bg-[#162d50] text-white"
+            >
+              Sign in with password
+            </Button>
+          </form>
+        </>
+      ) : null}
 
-      {/* Footer */}
       <div className="mt-8 pt-6 border-t border-[#e2e8f0]">
         <p className="text-center text-sm text-[#94a3b8]">
-          Don&apos;t have an account?{" "}
-          <Link
-            href="/register"
-            className="font-semibold text-[#0ea5e9] hover:text-[#0284c7] transition-colors"
-          >
-            Create account
-          </Link>
+          Need an account? Contact your administrator — self-registration may be
+          disabled.
         </p>
+        {process.env.NEXT_PUBLIC_DISABLE_SELF_REGISTER !== "true" ? (
+          <p className="mt-2 text-center text-sm">
+            <Link
+              href="/register"
+              className="font-semibold text-[#0ea5e9] hover:text-[#0284c7]"
+            >
+              Create account
+            </Link>
+          </p>
+        ) : null}
       </div>
     </div>
   );

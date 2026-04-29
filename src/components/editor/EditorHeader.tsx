@@ -8,24 +8,30 @@ interface EditorHeaderProps {
   title: string;
   questionCount: number;
   isGeneratingAll: boolean;
+  /** Primary action label when idle (default: Generate All) */
+  generateAllLabel?: string;
+  /** Primary action label while running (default: Generating...) */
+  generatingLabel?: string;
   onGenerateAll: () => void;
-  onSave: () => void;
-  onExport: () => void;
+  onSave?: () => void;
+  onExport?: () => void;
 }
 
 export function EditorHeader({
   title,
   questionCount,
   isGeneratingAll,
+  generateAllLabel = "Generate All",
+  generatingLabel = "Generating...",
   onGenerateAll,
-  onSave,
-  onExport,
 }: EditorHeaderProps) {
   return (
     <div className="flex shrink-0 items-center justify-between border-b bg-background/95 px-6 py-3 backdrop-blur-sm">
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        <Badge variant="secondary">{questionCount} questions</Badge>
+        <Badge variant="secondary">
+          {questionCount > 0 ? `${questionCount} questions` : "Excel file"}
+        </Badge>
       </div>
       <div className="flex items-center gap-2">
         <Button
@@ -39,16 +45,16 @@ export function EditorHeader({
           ) : (
             <Sparkles />
           )}
-          {isGeneratingAll ? "Generating..." : "Generate All"}
+          {isGeneratingAll ? generatingLabel : generateAllLabel}
         </Button>
-        <Button variant="outline" size="sm" onClick={onSave}>
+        {/* <Button variant="outline" size="sm" onClick={onSave}>
           <Save />
           Save Changes
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onExport}>
+        </Button> */}
+        {/* <Button variant="ghost" size="sm" onClick={onExport}>
           <Download />
           Export
-        </Button>
+        </Button> */}
       </div>
     </div>
   );

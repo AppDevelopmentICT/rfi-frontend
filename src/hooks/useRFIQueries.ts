@@ -5,6 +5,7 @@ import {
   autoFillExcel,
   downloadBlob,
   type AutoFillOptions,
+  type AutoFillResult,
 } from "@/services/rfi.service";
 import type { ExcelData } from "@/types/excel";
 
@@ -24,15 +25,19 @@ interface AutoFillParams {
 }
 
 export function useAutoFillMutation() {
-  return useMutation<Blob, Error, AutoFillParams>({
-    mutationFn: ({ file, options }) => autoFillExcel(file, options),
-    onSuccess: (blob, { originalFileName }) => {
-      const baseName = originalFileName.replace(/\.[^.]+$/, "");
-      downloadBlob(blob, `${baseName}_answered.xlsx`);
-      toast.success("Auto-fill complete! File downloaded.");
+  return useMutation<AutoFillResult, Error, AutoFillParams>({
+    mutationFn: ({ file, originalFileName, options }) =>
+      autoFillExcel(file, originalFileName, options),
+    onSuccess: (result) => {
+      downloadBlob(result.blob, result.filename);
+      toast.success(
+        result.message?.trim()
+          ? result.message
+          : "Filled workbook downloaded.",
+      );
     },
-    onError: () => {
-      toast.error("Auto-fill failed. Please try again.");
+    onError: (err) => {
+      toast.error(err.message || "Auto-fill failed. Please try again.");
     },
   });
 }

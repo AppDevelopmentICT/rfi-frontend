@@ -8,15 +8,15 @@ import { RFIEditor } from "@/components/editor/RFIEditor";
 export default function RfiViewerPage() {
   const router = useRouter();
   const documentId = useRFIStore((s) => s.documentId);
-  const questions = useRFIStore((s) => s.questions);
+  const file = useRFIStore((s) => s.file);
 
   useEffect(() => {
-    if (!documentId || questions.length === 0) {
+    if (!documentId || !file) {
       router.replace("/rfi/upload");
     }
-  }, [documentId, questions.length, router]);
+  }, [documentId, file, router]);
 
-  if (!documentId || questions.length === 0) return null;
+  if (!documentId || !file) return null;
 
   return (
     <div className="h-full max-w-none">

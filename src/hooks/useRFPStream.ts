@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useState } from "react";
 import { toast } from "sonner";
+import { pb } from "@/lib/pocketbase";
 
 interface WSMessage {
   type: "chunk" | "complete" | "error";
@@ -14,6 +15,14 @@ interface UseRFPStreamOptions {
   onChunk?: (chunk: string) => void;
   onComplete?: (fullContent: string) => void;
   onError?: (message: string) => void;
+}
+
+function authHeaders(): HeadersInit {
+  const t = pb.authStore.token;
+  return {
+    "Content-Type": "application/json",
+    ...(t ? { Authorization: `Bearer ${t}` } : {}),
+  };
 }
 
 export function useRFPStream(options?: UseRFPStreamOptions) {
@@ -37,8 +46,12 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
         projectName?: string;
         projectDescription?: string;
         additionalContext?: string;
-      }
+      },
     ) => {
+      if (!pb.authStore.token) {
+        toast.error("Sign in required.");
+        return;
+      }
       cancel();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -47,7 +60,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
       try {
         const res = await fetch("/api/v1/rfp/generate-technical", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify({ product, rfp: true, ...extras }),
           signal: controller.signal,
         });
@@ -100,11 +113,15 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
         abortRef.current = null;
       }
     },
-    [cancel]
+    [cancel],
   );
 
   const adjust = useCallback(
     async (product: string, content: string, additionalContext: string) => {
+      if (!pb.authStore.token) {
+        toast.error("Sign in required.");
+        return;
+      }
       cancel();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -113,7 +130,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
       try {
         const res = await fetch("/api/v1/rfp/generate-technical", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify({
             product,
             rfp: true,
@@ -158,7 +175,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
                   break;
               }
             } catch {
-              // skip
+              // skip malformed line
             }
           }
         }
@@ -172,7 +189,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
         abortRef.current = null;
       }
     },
-    [cancel]
+    [cancel],
   );
 
   return {

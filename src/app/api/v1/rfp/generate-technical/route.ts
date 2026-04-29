@@ -2,14 +2,27 @@ import { NextRequest } from "next/server";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 const WS_BASE = API_URL.replace(/^http/, "ws").replace(/\/api$/, "");
-const TOKEN =
+const FALLBACK_TOKEN =
   process.env.API_AUTH_SECRET ||
   process.env.NEXT_PUBLIC_API_AUTH_SECRET ||
-  "super-secret-default-key-change-me";
+  "";
 
 export async function POST(request: NextRequest) {
+  const auth = request.headers.get("authorization");
+  let token = "";
+  if (auth?.startsWith("Bearer ")) {
+    token = auth.slice("Bearer ".length).trim();
+  }
+  if (!token) token = FALLBACK_TOKEN;
+  if (!token) {
+    return new Response(
+      JSON.stringify({ error: "Missing Authorization Bearer token" }),
+      { status: 401, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const body = await request.json();
-  const wsUrl = `${WS_BASE}/api/v1/rfp/ws/generate-technical?token=${encodeURIComponent(TOKEN)}`;
+  const wsUrl = `${WS_BASE}/api/v1/rfp/ws/generate-technical?token=${encodeURIComponent(token)}`;
 
   const encoder = new TextEncoder();
 
@@ -40,8 +53,8 @@ export async function POST(request: NextRequest) {
             JSON.stringify({
               type: "error",
               message: "Failed to connect to generation service",
-            }) + "\n"
-          )
+            }) + "\n",
+          ),
         );
         controller.close();
       });

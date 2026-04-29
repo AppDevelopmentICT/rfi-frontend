@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
 
 import { FileUpload } from "@/components/shared/FileUpload";
-import { ColumnPickerModal } from "@/components/shared/ColumnPickerModal";
-import { useReadExcelMutation } from "@/hooks/useRFIQueries";
-import { useSaveQuestionsMutation } from "@/hooks/useAIQueries";
-import { useExcelStore } from "@/store/useExcelStore";
 import { useRFIStore } from "@/store/useRFIStore";
-import type { Question } from "@/types/question";
-import type { ExcelData } from "@/types/excel";
 import {
   Card,
   CardContent,
@@ -24,13 +18,9 @@ import { Button } from "@/components/ui/button";
 
 export default function UploadRfiPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [excelData, setLocalExcelData] = useState<ExcelData | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
   const router = useRouter();
 
-  const readExcelMutation = useReadExcelMutation();
-  const saveQuestionsMutation = useSaveQuestionsMutation();
-  const setExcelData = useExcelStore((s) => s.setExcelData);
   const setDocumentInfo = useRFIStore((s) => s.setDocumentInfo);
   const setQuestions = useRFIStore((s) => s.setQuestions);
 
@@ -42,28 +32,15 @@ export default function UploadRfiPage() {
 
   const handleProcess = () => {
     if (!selectedFile) return;
-    readExcelMutation.mutate(selectedFile, {
-      onSuccess: (data) => {
-        setExcelData(data);
-        setLocalExcelData(data);
-        setPickerOpen(true);
-      },
-    });
-  };
-
-  const handlePickerConfirm = (questions: Question[]) => {
-    setQuestions(questions);
-    setPickerOpen(false);
-    saveQuestionsMutation.mutate({ questions }, {
-      onSuccess: (data) => {
-        if (selectedFile) setDocumentInfo(data.documentId, selectedFile);
-        router.push("/rfi/viewer");
-      },
-    });
-  };
-
-  const handlePickerClose = () => {
-    setPickerOpen(false);
+    setIsOpening(true);
+    const baseName = selectedFile.name.replace(/\.[^.]+$/, "") || "rfi";
+    const documentId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${baseName}-${Date.now()}`;
+    setDocumentInfo(documentId, selectedFile);
+    setQuestions([]);
+    router.push("/rfi/viewer");
   };
 
   const handleClear = () => {
@@ -76,7 +53,8 @@ export default function UploadRfiPage() {
         <CardHeader>
           <CardTitle>Upload RFI Document</CardTitle>
           <CardDescription>
-            Upload your RFI Excel file to start generating AI responses. Supported formats: XLSX and XLS.
+            Select your RFI Excel file. It will be uploaded only when you generate the filled workbook.
+            Supported formats: XLSX and XLS.
           </CardDescription>
         </CardHeader>
 
@@ -118,34 +96,24 @@ export default function UploadRfiPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!selectedFile || readExcelMutation.isPending}
+            disabled={!selectedFile || isOpening}
             onClick={handleProcess}
           >
-            {readExcelMutation.isPending ? (
+            {isOpening ? (
               <Loader2 className="animate-spin" />
             ) : (
               <ArrowRight className="ml-1 size-4" />
             )}
-            {readExcelMutation.isPending ? "Processing..." : "Process RFI"}
+            {isOpening ? "Opening..." : "Open RFI"}
           </Button>
         </CardContent>
 
         <CardFooter>
           <p className="text-xs text-muted-foreground">
-            Processing typically takes a few seconds depending on the file size.
+            The file is sent to the backend only when you generate the filled Excel workbook.
           </p>
         </CardFooter>
       </Card>
-
-      {excelData && selectedFile && (
-        <ColumnPickerModal
-          open={pickerOpen}
-          onClose={handlePickerClose}
-          onConfirm={handlePickerConfirm}
-          excelData={excelData}
-          fileName={selectedFile.name}
-        />
-      )}
     </div>
   );
 }

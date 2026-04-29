@@ -1,16 +1,18 @@
+"use client";
+
 import axios from "axios";
+import { pb } from "@/lib/pocketbase";
 
 export const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "/api",
-  headers: {
-    "Content-Type": "application/json",
-  },
+  // Do NOT default Content-Type to application/json: with FormData, axios would
+  // stringify the body as JSON instead of multipart (see axios transformRequest).
+  headers: {},
 });
 
-// Add a request interceptor to inject the Auth Bearer token
 apiClient.interceptors.request.use((config) => {
-  const token = process.env.NEXT_PUBLIC_API_AUTH_SECRET || "super-secret-default-key-change-me";
-  if (config.headers) {
+  const token = pb.authStore.token;
+  if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -19,11 +21,19 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status >= 500) {
-      console.error(
-        `[API Error] ${error.response.status}:`,
-        error.response.data
-      );
+    const status = error.response?.status;
+    if (status && status >= 500) {
+      const payload = error.response.data;
+      // Blob payloads (e.g. responseType: "blob" with a JSON error) print as
+      // "[object Blob]" — log the URL/status only and let the caller surface
+      // the parsed message via its own error handling.
+      if (payload instanceof Blob) {
+        console.error(
+          `[API Error] ${status} ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
+        );
+      } else {
+        console.error(`[API Error] ${status}:`, payload);
+      }
     }
     return Promise.reject(error);
   }
