@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { ExcelData, AutoFillState } from "@/types/excel";
 
 interface ExcelStoreState {
@@ -27,8 +28,10 @@ const initialState: ExcelStoreState = {
   autoFillState: "idle",
 };
 
-export const useExcelStore = create<ExcelStore>()((set) => ({
-  ...initialState,
+export const useExcelStore = create<ExcelStore>()(
+  persist(
+    (set) => ({
+      ...initialState,
 
   setFile: (file) => set({ file, fileName: file.name }),
 
@@ -42,4 +45,15 @@ export const useExcelStore = create<ExcelStore>()((set) => ({
   setAutoFillState: (autoFillState) => set({ autoFillState }),
 
   reset: () => set(initialState),
-}));
+    }),
+    {
+      name: "excel-store",
+      partialize: (state) => ({
+        fileName: state.fileName,
+        excelData: state.excelData,
+        activeSheet: state.activeSheet,
+        autoFillState: state.autoFillState,
+      }),
+    }
+  )
+);

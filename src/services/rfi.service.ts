@@ -7,11 +7,29 @@ import type { ExcelData } from "@/types/excel";
 // POST /v1/rfi/read — upload Excel, get parsed sheets as JSON
 // ---------------------------------------------------------------------------
 
-export async function readExcel(file: File): Promise<ExcelData> {
+export interface UploadRfiResponse {
+  documentId: string;
+  fileName: string;
+  excelData: ExcelData;
+}
+
+export async function uploadAndReadExcel(file: File): Promise<UploadRfiResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const { data } = await apiClient.post<ExcelData>("/v1/rfi/read", formData);
+  const { data } = await apiClient.post<UploadRfiResponse>("/v1/rfi/upload-and-read", formData);
+  return data;
+}
+
+export interface RFIProjectResponse {
+  documentId: string;
+  fileName: string;
+  excelData: ExcelData;
+  status: string;
+}
+
+export async function getRfiDocument(documentId: string): Promise<RFIProjectResponse> {
+  const { data } = await apiClient.get<RFIProjectResponse>(`/v1/rfi/${documentId}`);
   return data;
 }
 
@@ -26,11 +44,11 @@ export interface AutoFillOptions {
 }
 
 export interface AutoFillResult {
-  blob: Blob;
-  /** Server summary from X-AutoFill-Message header */
+  documentId: string;
+  status: string;
+  fileName?: string;
+  excelData?: ExcelData;
   message?: string;
-  /** Suggested filename from Content-Disposition (filled workbook) */
-  filename: string;
 }
 
 function parseContentDispositionFilename(cd: string | undefined, fallback: string): string {
@@ -71,7 +89,6 @@ async function axiosErrorMessage(err: unknown): Promise<string> {
 
 export async function autoFillExcel(
   file: File,
-  originalFileName: string,
   options?: AutoFillOptions,
 ): Promise<AutoFillResult> {
   const formData = new FormData();
@@ -82,32 +99,44 @@ export async function autoFillExcel(
     formData.append("context_columns", options.contextColumns);
   if (options?.fillColumns) formData.append("fill_columns", options.fillColumns);
 
-  const fallbackName = `${originalFileName.replace(/\.[^.]+$/, "")}_answered.xlsx`;
-
   try {
-    const res = await apiClient.post<Blob>("/v1/rfi/auto-fill", formData, {
-      responseType: "blob",
-    });
-
-    const message =
-      typeof res.headers["x-autofill-message"] === "string"
-        ? res.headers["x-autofill-message"]
-        : undefined;
-
-    const filename = parseContentDispositionFilename(
-      res.headers["content-disposition"],
-      fallbackName,
-    );
-
-    return {
-      blob: res.data,
-      message,
-      filename,
-    };
+    const { data } = await apiClient.post<AutoFillResult>(`/v1/rfi/auto-fill`, formData);
+    return data;
   } catch (e: unknown) {
     if (!axios.isAxiosError(e)) throw e as Error;
     const msg = await axiosErrorMessage(e);
     throw new Error(msg);
+  }
+}
+
+export async function updateRfiCell(
+  documentId: string,
+  sheet: string,
+  rowIdx: number,
+  column: string,
+  value: string
+): Promise<void> {
+  await apiClient.put(`/v1/rfi/${documentId}/update-cell`, {
+    sheet,
+    rowIdx,
+    column,
+    value,
+  });
+}
+
+export async function exportRfiExcel(documentId: string): Promise<void> {
+  try {
+    const res = await apiClient.get<Blob>(`/v1/rfi/${documentId}/download`, {
+      responseType: "blob",
+    });
+    const filename = parseContentDispositionFilename(
+      res.headers["content-disposition"],
+      `rfi_${documentId}.xlsx`
+    );
+    downloadBlob(res.data, filename);
+  } catch (e) {
+    console.error("Export failed", e);
+    throw e;
   }
 }
 

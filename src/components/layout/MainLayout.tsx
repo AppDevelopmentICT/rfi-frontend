@@ -33,7 +33,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-7xl bg-background">
+          <div className="w-full h-full p-2 bg-background">
             {children}
           </div>
         </main>

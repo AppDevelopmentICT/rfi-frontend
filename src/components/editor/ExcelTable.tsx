@@ -1,13 +1,21 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useExcelStore } from "@/store/useExcelStore";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useUpdateCellMutation } from "@/hooks/useRFIQueries";
 
-export function ExcelTable() {
+interface ExcelTableProps {
+  isGenerated?: boolean;
+  documentId?: string;
+}
+
+export function ExcelTable({ isGenerated = false, documentId }: ExcelTableProps) {
   const excelData = useExcelStore((s) => s.excelData);
   const activeSheet = useExcelStore((s) => s.activeSheet);
   const setActiveSheet = useExcelStore((s) => s.setActiveSheet);
+  const { mutate: updateCell } = useUpdateCellMutation();
 
   if (!excelData) return null;
 
@@ -82,14 +90,30 @@ export function ExcelTable() {
                     <td
                       key={colIdx}
                       className={cn(
-                        "max-w-xs truncate px-4 py-3",
+                        "max-w-xs px-4 py-3 align-top",
                         isEmpty
                           ? "bg-amber-500/5 text-muted-foreground italic"
-                          : "text-foreground"
+                          : "text-foreground",
+                        isGenerated ? "hover:bg-muted cursor-text" : "truncate"
                       )}
+                      contentEditable={isGenerated}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        if (!isGenerated || !documentId) return;
+                        const newValue = e.target.innerText;
+                        if (newValue !== String(value || "")) {
+                          updateCell({
+                            documentId,
+                            sheet: activeSheet,
+                            rowIdx,
+                            column: header,
+                            value: newValue
+                          });
+                        }
+                      }}
                       title={isEmpty ? "(empty)" : String(value)}
                     >
-                      {isEmpty ? "—" : String(value)}
+                      {isEmpty && !isGenerated ? "—" : String(value || "")}
                     </td>
                   );
                 })}

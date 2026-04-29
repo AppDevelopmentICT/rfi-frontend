@@ -17,6 +17,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { logCustomEvent, getDashboardHistory, AuditLogEntry } from "@/services/dashboard.service";
+import { getRfiDocument } from "@/services/rfi.service";
+import { useRFIStore } from "@/store/useRFIStore";
+import { useExcelStore } from "@/store/useExcelStore";
+import { useEffect, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useRouter } from "next/navigation";
 
 interface SidebarProps {
   onClose: () => void;
@@ -25,7 +35,45 @@ interface SidebarProps {
 
 export function Sidebar({ onClose, isMobile }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, ready, signOut } = useAuth();
+  const [history, setHistory] = useState<AuditLogEntry[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const activeJobs = useRFIStore(s => s.activeJobs);
+  const updateJob = useRFIStore(s => s.updateJob);
+  const removeJob = useRFIStore(s => s.removeJob);
+
+  useEffect(() => {
+    getDashboardHistory(5).then(setHistory).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const active = activeJobs.filter(j => j.status === "generating");
+    if (active.length === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const job of active) {
+        try {
+          const doc = await getRfiDocument(job.id);
+          if (doc.status === "completed") {
+            updateJob(job.id, "completed");
+            if (doc.excelData) {
+              useExcelStore.getState().setExcelData(doc.excelData);
+            }
+            toast.success(`RFI Generation completed: ${job.filename}`);
+            getDashboardHistory(5).then(setHistory).catch(() => {});
+          } else if (doc.status === "failed") {
+            updateJob(job.id, "failed");
+            toast.error(`RFI Generation failed: ${job.filename}`);
+          }
+        } catch (e) {
+          // ignore transient errors
+        }
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [activeJobs, updateJob]);
 
   const initials = user?.name
     ? user.name
@@ -141,15 +189,73 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         <Separator className="bg-border/50 mx-3 w-auto" />
 
         <ScrollArea className="flex-1 px-3 py-4">
-          <div className="mt-8 flex flex-col gap-1">
-            <p className="px-2 pb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">
-              History
-            </p>
-            <p className="px-2 py-1 text-xs text-muted-foreground/60 italic">
-              No recent activity
-            </p>
-          </div>
+          {activeJobs.length > 0 && (
+            <div className="flex flex-col gap-1 mb-6">
+              <p className="px-2 pb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                Background Tasks
+              </p>
+              <div className="flex flex-col gap-2">
+                {activeJobs.map(job => (
+                  <div 
+                    key={job.id} 
+                    className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground/80 hover:bg-accent hover:text-foreground cursor-pointer rounded-md transition-colors"
+                    onClick={() => {
+                      if (job.status !== "failed") {
+                        useRFIStore.setState({ fileName: job.filename });
+                        router.push("/rfi/viewer");
+                      }
+                    }}
+                  >
+                    {job.status === "generating" ? <Loader2 className="size-3 animate-spin text-primary" /> : job.status === "completed" ? <CheckCircle2 className="size-3 text-green-500" /> : <AlertCircle className="size-3 text-destructive" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{job.filename}</p>
+                      <p className="text-[10px] truncate capitalize">{job.status}</p>
+                    </div>
+                    {job.status !== "generating" && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon-sm" 
+                        className="size-5 shrink-0" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeJob(job.id);
+                        }}
+                      >
+                        <span className="sr-only">Dismiss</span>
+                        &times;
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </ScrollArea>
+
+        <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen} className="border-t bg-sidebar-accent/10">
+          <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 hover:bg-accent transition-colors cursor-pointer">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">History</span>
+            {isHistoryOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="px-3 pb-4">
+            {history.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground/60 italic">
+                No recent activity
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
+                {history.map(log => (
+                  <div key={log.id} className="px-2 py-1 text-xs text-muted-foreground/80 hover:text-foreground">
+                    <p className="font-medium truncate">{log.action.replace("rfi.", "RFI ").toUpperCase()}</p>
+                    <p className="text-[10px] truncate">{log.details?.filename || log.resource_type}</p>
+                    <p className="text-[9px] opacity-70 mt-0.5">{formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
 
         {ready && user && (
           <div className="mt-auto border-t bg-sidebar-accent/30 p-4">
@@ -168,7 +274,10 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => {
+                onClick={async () => {
+                  try {
+                    await logCustomEvent("auth.logout", "user");
+                  } catch (e) {}
                   signOut();
                   window.location.href = "/login";
                 }}

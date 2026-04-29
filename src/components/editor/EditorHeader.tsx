@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Save, Download, Loader2 } from "lucide-react";
+import { Sparkles, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -24,6 +24,7 @@ export function EditorHeader({
   generateAllLabel = "Generate All",
   generatingLabel = "Generating...",
   onGenerateAll,
+  onExport,
 }: EditorHeaderProps) {
   return (
     <div className="flex shrink-0 items-center justify-between border-b bg-background/95 px-6 py-3 backdrop-blur-sm">
@@ -34,6 +35,12 @@ export function EditorHeader({
         </Badge>
       </div>
       <div className="flex items-center gap-2">
+        {onExport && (
+          <Button variant="outline" size="sm" onClick={onExport} disabled={isGeneratingAll}>
+            <Download className="size-4" />
+            Export Excel
+          </Button>
+        )}
         <Button
           variant="default"
           size="sm"
@@ -47,14 +54,6 @@ export function EditorHeader({
           )}
           {isGeneratingAll ? generatingLabel : generateAllLabel}
         </Button>
-        {/* <Button variant="outline" size="sm" onClick={onSave}>
-          <Save />
-          Save Changes
-        </Button> */}
-        {/* <Button variant="ghost" size="sm" onClick={onExport}>
-          <Download />
-          Export
-        </Button> */}
       </div>
     </div>
   );

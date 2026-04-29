@@ -1,162 +1,147 @@
 "use client";
 
-import { useRef, useCallback } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import { useRFIStore } from "@/store/useRFIStore";
+import { useExcelStore } from "@/store/useExcelStore";
 import { EditorHeader } from "@/components/editor/EditorHeader";
-import { QuestionCard } from "@/components/editor/QuestionCard";
+import { ExcelTable } from "@/components/editor/ExcelTable";
 import { useAutoFillMutation } from "@/hooks/useRFIQueries";
-import { useRegenerateMutation } from "@/hooks/useAIQueries";
+import { exportRfiExcel } from "@/services/rfi.service";
+import { useState } from "react";
 
 interface RFIEditorProps {
   rfiId: string;
 }
 
 export function RFIEditor({ rfiId }: RFIEditorProps) {
-  const questions = useRFIStore((s) => s.questions);
   const file = useRFIStore((s) => s.file);
+  const fileBase64 = useRFIStore((s) => s.fileBase64);
   const fileName = useRFIStore((s) => s.fileName);
-  const updateAnswer = useRFIStore((s) => s.updateAnswer);
-  const updateSources = useRFIStore((s) => s.updateSources);
-  const setQuestionStatus = useRFIStore((s) => s.setQuestionStatus);
+  const setExcelData = useExcelStore((s) => s.setExcelData);
+  const activeJobs = useRFIStore((s) => s.activeJobs);
 
-  const parentRef = useRef<HTMLDivElement>(null);
+  // Find latest job for this file
+  const activeJob = activeJobs.slice().reverse().find(j => j.filename.startsWith(fileName.replace(/\.[^.]+$/, "")));
+  
+  const { mutate, isPending } = useAutoFillMutation();
+  const [isExporting, setIsExporting] = useState(false);
 
-  const { mutate, isPending, data: autoFillResult } = useAutoFillMutation();
-  const regenerateMutation = useRegenerateMutation();
+  const handleAutoFillExcel = useCallback(async () => {
+    let uploadFile = file;
+    
+    if (!uploadFile && fileBase64 && fileName) {
+      try {
+        const res = await fetch(fileBase64);
+        const blob = await res.blob();
+        uploadFile = new File([blob], fileName, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      } catch (e) {
+        console.error("Failed to reconstruct file from base64", e);
+      }
+    }
 
-  const virtualizer = useVirtualizer({
-    count: questions.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 280,
-    overscan: 5,
-  });
-
-  const handleAnswerChange = useCallback(
-    (id: string, answer: string) => {
-      updateAnswer(id, answer);
-    },
-    [updateAnswer]
-  );
-
-  const handleRegenerate = useCallback(
-    (id: string) => {
-      setQuestionStatus(id, "generating");
-      regenerateMutation.mutate(
-        { documentId: rfiId, questionId: id },
-        {
-          onSuccess: (data) => {
-            updateAnswer(id, data.answer);
-            updateSources(id, data.sources);
-            setQuestionStatus(id, "completed");
-            toast.success("Answer regenerated");
-          },
-          onError: () => {
-            setQuestionStatus(id, "idle");
-          },
-        }
-      );
-    },
-    [rfiId, setQuestionStatus, updateAnswer, updateSources, regenerateMutation]
-  );
-
-  const handleAutoFillExcel = useCallback(() => {
-    if (!file) {
+    if (!uploadFile) {
       toast.error(
         "Original workbook is unavailable. Go back to upload and open the file again."
       );
       return;
     }
 
-    mutate({
-      file,
-      originalFileName: fileName || file.name,
-      options: undefined,
-    });
-  }, [file, fileName, mutate]);
+    mutate(
+      { file: uploadFile },
+      {
+        onSuccess: (data) => {
+          if (data.excelData) {
+            setExcelData(data.excelData);
+          }
+        }
+      }
+    );
+  }, [file, fileBase64, fileName, mutate, setExcelData]);
 
   const handleSave = useCallback(() => {
     toast.success("This feature is not available yet.");
   }, []);
 
-  const handleExport = useCallback(() => {
-    handleAutoFillExcel();
-  }, [handleAutoFillExcel]);
+  const handleExport = useCallback(async () => {
+    const docId = activeJob?.id;
+    if (!docId) {
+      toast.error("You must auto-fill the document first before exporting.");
+      return;
+    }
+    try {
+      setIsExporting(true);
+      await exportRfiExcel(docId);
+    } catch (e) {
+      toast.error("Failed to export Excel.");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [activeJob?.id]);
+
+  const displayTitle = activeJob?.filename || fileName || rfiId;
+  const isGenerating = isPending || activeJob?.status === "generating";
+  const isCompleted = activeJob?.status === "completed";
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-muted/40" style={{ height: "calc(100dvh - 3.5rem)" }}>
       <EditorHeader
-        title={fileName ? `RFI Project - ${fileName}` : `RFI Project - ${rfiId}.xlsx`}
-        questionCount={questions.length}
-        isGeneratingAll={isPending}
+        title={`RFI Project - ${displayTitle}`}
+        questionCount={0}
+        isGeneratingAll={isGenerating || isExporting}
         generateAllLabel="Auto-fill Excel"
-        generatingLabel="Filling workbook..."
+        generatingLabel={isExporting ? "Exporting..." : "Filling workbook..."}
         onGenerateAll={handleAutoFillExcel}
         onSave={handleSave}
         onExport={handleExport}
       />
 
-      <div ref={parentRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-6 py-6">
-          {questions.length === 0 ? (
-            <div className="rounded-lg border bg-background p-6 shadow-sm">
+      <div className="flex-1 overflow-y-auto">
+        <div className="w-full">
+          {(!isCompleted && !isGenerating && !file && !fileBase64) && (
+            <div className="rounded-lg border bg-background p-6 shadow-sm mb-6 m-6">
               <h2 className="text-base font-semibold">Ready to generate Excel response</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                The selected workbook will be uploaded only when you click Auto-fill Excel.
-                The backend response is the filled .xlsx file, which will download automatically.
+                Review your Excel data below. Click &quot;Auto-fill Excel&quot; to generate the answers.
               </p>
-
-              {fileName && (
-                <p className="mt-4 rounded-md bg-muted px-3 py-2 text-sm">
-                  Selected file: <span className="font-medium">{fileName}</span>
-                </p>
-              )}
-
-              {autoFillResult && (
-                <div className="mt-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
-                  <p className="font-medium">Excel response generated</p>
-                  <p className="mt-1">
-                    {autoFillResult.message || "Filled workbook downloaded."}
-                  </p>
-                  <p className="mt-1 text-xs">File: {autoFillResult.filename}</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div
-              style={{
-                height: virtualizer.getTotalSize(),
-                position: "relative",
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualItem) => {
-                const question = questions[virtualItem.index];
-                return (
-                  <div
-                    key={virtualItem.key}
-                    data-index={virtualItem.index}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualItem.start}px)`,
-                    }}
-                  >
-                    <div className="pb-4">
-                      <QuestionCard
-                        question={question}
-                        onAnswerChange={handleAnswerChange}
-                        onRegenerate={handleRegenerate}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           )}
+          {isGenerating && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4 shadow-sm mb-6 m-6 flex items-center gap-4">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-30" />
+                <span className="relative inline-flex h-6 w-6 rounded-full bg-blue-500" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-blue-900">Generating answers...</h2>
+                <p className="text-xs text-blue-700">Your workbook is being processed in the background. You can leave and come back anytime.</p>
+              </div>
+            </div>
+          )}
+          {isCompleted && (
+            <div className="rounded-lg border border-green-200 bg-green-50/50 p-4 shadow-sm mb-6 m-6 flex items-center gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
+                <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-green-900">Workbook filled successfully</h2>
+                <p className="text-xs text-green-700">You can now review and export your responses.</p>
+              </div>
+            </div>
+          )}
+          {activeJob?.status === "failed" && (
+            <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 shadow-sm mb-6 m-6 flex items-center gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <svg className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-red-900">Generation failed</h2>
+                <p className="text-xs text-red-700">Something went wrong. Try uploading again or contact support.</p>
+              </div>
+            </div>
+          )}
+          
+          <ExcelTable isGenerated={isCompleted} documentId={activeJob?.id} />
         </div>
       </div>
     </div>

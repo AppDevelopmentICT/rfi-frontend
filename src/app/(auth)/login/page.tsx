@@ -13,6 +13,7 @@ import { pb } from "@/lib/pocketbase";
 import { ClientResponseError } from "pocketbase";
 
 import { isCompanyEmail } from "@/lib/company-email";
+import { logCustomEvent } from "@/services/dashboard.service";
 
 const SHOW_PASSWORD_LOGIN =
   process.env.NEXT_PUBLIC_SHOW_PASSWORD_LOGIN === "true";
@@ -38,9 +39,20 @@ export default function LoginPage() {
   async function handleMicrosoft() {
     setOauthBusy(true);
     try {
-      await pb.collection("users").authWithOAuth2({ provider: "microsoft" });
+      const authData = await pb.collection("users").authWithOAuth2({ provider: "microsoft" });
 
       const email = pb.authStore.record?.email as string | undefined;
+      const avatarUrl = authData.meta?.avatarUrl;
+
+      if (avatarUrl && authData.record?.id) {
+        try {
+          await pb.collection("users").update(authData.record.id, {
+            avatarUrl: avatarUrl
+          });
+        } catch (updateErr) {
+          console.error("Failed to update user avatarUrl in PocketBase:", updateErr);
+        }
+      }
       if (!isCompanyEmail(email)) {
         pb.authStore.clear();
         toast.error("Access denied", {
@@ -51,6 +63,11 @@ export default function LoginPage() {
       }
 
       toast.success("Signed in");
+      try {
+        await logCustomEvent("auth.login", "user", { method: "microsoft", email });
+      } catch (e) {
+        console.error("Failed to log login event", e);
+      }
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -85,6 +102,11 @@ export default function LoginPage() {
       }
 
       toast.success("Signed in");
+      try {
+        await logCustomEvent("auth.login", "user", { method: "password", email });
+      } catch (e) {
+        console.error("Failed to log login event", e);
+      }
       router.push("/");
       router.refresh();
     } catch (err) {
