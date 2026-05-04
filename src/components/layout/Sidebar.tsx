@@ -1,57 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Plus,
-  ChevronLeft,
+  ChevronDown,
   LogOut,
   Database,
-  Files,
-  Settings,
+  FileText,
   LayoutDashboard,
-  HelpCircle,
   ShieldCheck,
   Trash2,
   Users,
+  BookOpen,
+  FileSpreadsheet,
+  FileSignature,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { logCustomEvent, getDashboardHistory, AuditLogEntry } from "@/services/dashboard.service";
+import { logCustomEvent } from "@/services/dashboard.service";
 import { getRfiDocument } from "@/services/rfi.service";
 import { useRFIStore } from "@/store/useRFIStore";
 import { useExcelStore } from "@/store/useExcelStore";
-import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { useEffect } from "react";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useRouter } from "next/navigation";
 
 interface SidebarProps {
   onClose: () => void;
   isMobile?: boolean;
 }
 
+const mainNavItems = [
+  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+  { icon: Database, label: "Knowledge Base", href: "/knowledge-base" },
+  { icon: FileText, label: "Documents", href: "/documents" },
+];
+
+const adminNavItems = [
+  { icon: ShieldCheck, label: "Audit Log", href: "/admin/audit-log" },
+  { icon: Users, label: "Users", href: "/admin/users" },
+  { icon: Trash2, label: "Trash & Recover", href: "/admin/trash" },
+];
+
 export function Sidebar({ onClose, isMobile }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, ready, signOut } = useAuth();
-  const [history, setHistory] = useState<AuditLogEntry[]>([]);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const activeJobs = useRFIStore(s => s.activeJobs);
-  const updateJob = useRFIStore(s => s.updateJob);
-  const removeJob = useRFIStore(s => s.removeJob);
+  const activeJobs = useRFIStore((s) => s.activeJobs);
+  const updateJob = useRFIStore((s) => s.updateJob);
+  const removeJob = useRFIStore((s) => s.removeJob);
 
   useEffect(() => {
-    getDashboardHistory(5).then(setHistory).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const active = activeJobs.filter(j => j.status === "generating");
+    const active = activeJobs.filter((j) => j.status === "generating");
     if (active.length === 0) return;
 
     const interval = setInterval(async () => {
@@ -64,19 +75,18 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
               useExcelStore.getState().setExcelData(doc.excelData);
             }
             toast.success(`RFI Generation completed: ${job.filename}`);
-            getDashboardHistory(5).then(setHistory).catch(() => {});
           } else if (doc.status === "failed") {
             updateJob(job.id, "failed");
             toast.error(`RFI Generation failed: ${job.filename}`);
           }
-        } catch {
-          // ignore transient errors
-        }
+        } catch {}
       }
     }, 5000);
 
     return () => clearInterval(interval);
   }, [activeJobs, updateJob]);
+
+  const isAdmin = !!user?.is_admin;
 
   const initials = user?.name
     ? user.name
@@ -88,278 +98,221 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         .toUpperCase()
     : user?.email?.[0]?.toUpperCase();
 
-  const isAdmin = !!user?.is_admin;
-
-  const railItems = [
-    { icon: LayoutDashboard, label: "Home", href: "/" },
-    { icon: Database, label: "Knowledge Base", href: "/knowledge-base" },
-    { icon: Files, label: "Documents", href: "/documents" },
-    ...(isAdmin ? [{ icon: ShieldCheck, label: "Audit Log", href: "/admin/audit-log" }] : []),
-  ];
-
-  const bottomRailItems = [
-    { icon: HelpCircle, label: "Support", href: "#" },
-    { icon: Settings, label: "Settings", href: "#" },
-  ];
+  const isActivePath = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <div className="flex h-full">
-      {!isMobile && (
-        <div className="flex w-14 flex-col items-center border-r bg-sidebar py-4">
-          <div className="flex flex-col gap-4">
-            {railItems.map((item) => {
-              const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
-              return (
-                <Link key={item.label} href={item.href}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+    <div className="flex h-full w-64 flex-col border-r border-border/40 bg-sidebar">
+      <div className="flex items-center gap-2.5 px-5 pt-5 pb-1">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <BookOpen className="size-4" strokeWidth={2.5} />
+        </div>
+        <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
+          RFI Platform
+        </span>
+      </div>
+
+      <div className="px-4 pt-5 pb-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 h-8 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none select-none"
+          >
+            <Plus className="size-4" strokeWidth={2.5} />
+            <span>Create New</span>
+            <ChevronDown className="ml-auto size-3.5 opacity-60" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[224px] shadow-xl">
+            <DropdownMenuItem
+              className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer"
+              onClick={() => router.push("/rfi/upload")}
+            >
+              <FileSpreadsheet className="size-4 shrink-0 text-foreground/70" />
+              <div>
+                <p className="text-[13px] font-semibold text-foreground">New RFI</p>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Upload Excel
+                </p>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer"
+              onClick={() => router.push("/rfp/upload")}
+            >
+              <FileSignature className="size-4 shrink-0 text-foreground/70" />
+              <div>
+                <p className="text-[13px] font-semibold text-foreground">New RFP</p>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Generate Ch.3
+                </p>
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <ScrollArea className="flex-1 px-3 py-3">
+        <nav className="flex flex-col gap-0.5">
+          {mainNavItems.map((item) => {
+            const active = isActivePath(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={isMobile ? onClose : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors",
+                  active
+                    ? "bg-muted font-semibold text-foreground"
+                    : "font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                )}
+              >
+                <item.icon className="size-5 shrink-0" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {isAdmin && (
+          <div className="mt-6">
+            <p className="text-xs font-semibold text-muted-foreground tracking-wider px-3 mb-2">
+              Admin
+            </p>
+            <nav className="flex flex-col gap-0.5">
+              {adminNavItems.map((item) => {
+                const active = isActivePath(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={isMobile ? onClose : undefined}
                     className={cn(
-                      "size-9 transition-all hover:bg-accent",
-                      isActive
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors",
+                      active
+                        ? "bg-muted font-semibold text-foreground"
+                        : "font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     )}
                   >
-                    <item.icon className="size-5" />
-                    <span className="sr-only">{item.label}</span>
-                  </Button>
-                </Link>
-              );
-            })}
+                    <item.icon className="size-5 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
           </div>
+        )}
 
-          <div className="mt-auto flex flex-col gap-4">
-            {bottomRailItems.map((item) => (
-              <Button
-                key={item.label}
-                variant="ghost"
-                size="icon"
-                className="size-9 text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <item.icon className="size-5" />
-                <span className="sr-only">{item.label}</span>
-              </Button>
-            ))}
+        {activeJobs.length > 0 && (
+          <div className="mt-6">
+            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground tracking-wider">
+              ADMIN
+            </p>
+            <nav className="flex flex-col gap-0.5">
+              {adminNavItems.map((item) => {
+                const active = isActivePath(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={isMobile ? onClose : undefined}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors duration-150",
+                      active
+                        ? "bg-muted text-foreground font-semibold"
+                        : "font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    )}
+                  >
+                    <item.icon className="size-5 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        )}
+
+        {activeJobs.length > 0 && (
+          <div className="mt-5">
+            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground tracking-wider">
+              Active
+            </p>
+            <div className="flex flex-col gap-1">
+              {activeJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-muted/60 cursor-pointer"
+                  onClick={() => {
+                    if (job.status !== "failed") {
+                      useRFIStore.setState({ fileName: job.filename });
+                      router.push(`/rfi/${job.id}`);
+                    }
+                  }}
+                >
+                  {job.status === "generating" ? (
+                    <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
+                  ) : job.status === "completed" ? (
+                    <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
+                  ) : (
+                    <AlertCircle className="size-3.5 text-destructive shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate text-foreground/90">
+                      {job.filename}
+                    </p>
+                    <p className="text-[10px] truncate capitalize text-muted-foreground">
+                      {job.status}
+                    </p>
+                  </div>
+                  {job.status !== "generating" && (
+                    <button
+                      type="button"
+                      className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeJob(job.id);
+                      }}
+                    >
+                      <span className="sr-only">Dismiss</span>
+                      &times;
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </ScrollArea>
+
+      {ready && user && (
+        <div className="mt-auto border-t px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
+              {initials}
+            </div>
+            <div className="flex-1 overflow-hidden min-w-0">
+              <p className="truncate text-sm font-medium text-foreground leading-none">
+                {user.name || user.email}
+              </p>
+              <p className="mt-1 truncate text-[11px] text-muted-foreground leading-none">
+                {user.email}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              onClick={async () => {
+                try {
+                  await logCustomEvent("auth.logout", "user");
+                } catch {}
+                signOut();
+                window.location.href = "/login";
+              }}
+            >
+              <LogOut className="size-3.5" />
+            </button>
           </div>
         </div>
       )}
-
-      <div
-        className={cn(
-          "flex h-full flex-col bg-sidebar text-sidebar-foreground",
-          isMobile ? "w-full" : "w-[240px]"
-        )}
-      >
-        <div className="flex items-center justify-between px-4 py-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {(() => {
-              if (pathname.includes("knowledge")) return "Knowledge Base";
-              if (pathname.includes("documents")) return "Documents";
-              if (pathname.includes("rfi")) return "RFI";
-              if (pathname.includes("rfp")) return "RFP";
-              return "Dashboard";
-            })()}
-          </h2>
-          {isMobile && (
-            <Button variant="ghost" size="icon-sm" onClick={onClose}>
-              <ChevronLeft className="size-4" />
-            </Button>
-          )}
-        </div>
-
-        <div className="px-3 pb-4 pt-2">
-          <div className="space-y-2">
-            <Link href="/rfi/upload" className="block group">
-              <div className="relative overflow-hidden rounded-lg border border-blue-200/50 bg-linear-to-br from-blue-50 to-blue-100/50 p-3.5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-blue-300/70 dark:from-blue-950/30 dark:to-blue-900/20 dark:border-blue-800/50 dark:hover:border-blue-700/70">
-                <div className="absolute -right-6 -top-6 size-20 rounded-full bg-blue-500/10 blur-2xl transition-all duration-300 group-hover:bg-blue-500/20" />
-                <div className="relative flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-transform duration-200 group-hover:scale-110 dark:bg-blue-500">
-                    <Plus className="size-4.5" strokeWidth={2.5} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                      New RFI
-                    </h3>
-                    <p className="mt-0.5 text-[11px] text-blue-700/80 dark:text-blue-300/70">
-                      Upload & auto-fill Excel
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-
-            <Link href="/rfp/upload" className="block group">
-              <div className="relative overflow-hidden rounded-lg border border-purple-200/50 bg-linear-to-br from-purple-50 to-purple-100/50 p-3.5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-purple-300/70 dark:from-purple-950/30 dark:to-purple-900/20 dark:border-purple-800/50 dark:hover:border-purple-700/70">
-                <div className="absolute -right-6 -top-6 size-20 rounded-full bg-purple-500/10 blur-2xl transition-all duration-300 group-hover:bg-purple-500/20" />
-                <div className="relative flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-purple-600 text-white shadow-sm transition-transform duration-200 group-hover:scale-110 dark:bg-purple-500">
-                    <Plus className="size-4.5" strokeWidth={2.5} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
-                      New RFP
-                    </h3>
-                    <p className="mt-0.5 text-[11px] text-purple-700/80 dark:text-purple-300/70">
-                      Generate Chapter 3
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </div>
-        </div>
-
-        <Separator className="bg-border/50 mx-3 w-auto" />
-
-        <ScrollArea className="flex-1 px-3 py-4">
-          {isAdmin && (
-            <div className="mb-6 flex flex-col gap-1">
-              <p className="px-2 pb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">
-                Admin
-              </p>
-              <Link
-                href="/admin/audit-log"
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
-                  pathname.startsWith("/admin/audit-log")
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground"
-                )}
-              >
-                <ShieldCheck className="size-4" />
-                Audit Log
-              </Link>
-              <Link
-                href="/admin/users"
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
-                  pathname.startsWith("/admin/users")
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground"
-                )}
-              >
-                <Users className="size-4" />
-                Users
-              </Link>
-              <Link
-                href="/admin/trash"
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
-                  pathname.startsWith("/admin/trash")
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground"
-                )}
-              >
-                <Trash2 className="size-4" />
-                Trash &amp; Recover
-              </Link>
-            </div>
-          )}
-
-          {activeJobs.length > 0 && (
-            <div className="flex flex-col gap-1 mb-6">
-              <p className="px-2 pb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">
-                Background Tasks
-              </p>
-              <div className="flex flex-col gap-2">
-                {activeJobs.map(job => (
-                  <div 
-                    key={job.id} 
-                    className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground/80 hover:bg-accent hover:text-foreground cursor-pointer rounded-md transition-colors"
-                    onClick={() => {
-                      if (job.status !== "failed") {
-                        useRFIStore.setState({ fileName: job.filename });
-                        router.push(`/rfi/${job.id}`);
-                      }
-                    }}
-                  >
-                    {job.status === "generating" ? <Loader2 className="size-3 animate-spin text-primary" /> : job.status === "completed" ? <CheckCircle2 className="size-3 text-green-500" /> : <AlertCircle className="size-3 text-destructive" />}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{job.filename}</p>
-                      <p className="text-[10px] truncate capitalize">{job.status}</p>
-                    </div>
-                    {job.status !== "generating" && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon-sm" 
-                        className="size-5 shrink-0" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeJob(job.id);
-                        }}
-                      >
-                        <span className="sr-only">Dismiss</span>
-                        &times;
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-        </ScrollArea>
-
-        <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen} className="border-t bg-sidebar-accent/10">
-          <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 hover:bg-accent transition-colors cursor-pointer">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">History</span>
-            {isHistoryOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
-          </CollapsibleTrigger>
-          <CollapsibleContent className="px-3 pb-4">
-            {history.length === 0 ? (
-              <p className="px-2 py-1 text-xs text-muted-foreground/60 italic">
-                No recent activity
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
-                {history.map(log => (
-                  <div key={log.id} className="px-2 py-1 text-xs text-muted-foreground/80 hover:text-foreground">
-                    <p className="font-medium truncate">{log.action.replace("rfi.", "RFI ").toUpperCase()}</p>
-                    <p className="text-[10px] truncate">{log.details?.filename || log.resource_type}</p>
-                    <p className="text-[9px] opacity-70 mt-0.5">{formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
-
-        {ready && user && (
-          <div className="mt-auto border-t bg-sidebar-accent/30 p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
-                {initials}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-semibold text-foreground leading-none">
-                  {user.name || user.email}
-                </p>
-                <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                  {user.email}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={async () => {
-                  try {
-                    await logCustomEvent("auth.logout", "user");
-                  } catch {}
-                  signOut();
-                  window.location.href = "/login";
-                }}
-                className="hover:bg-destructive/10 hover:text-destructive"
-              >
-                <LogOut className="size-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
