@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 import { FileUpload } from "@/components/shared/FileUpload";
 import { ProductCombobox } from "@/components/shared/ProductCombobox";
@@ -59,10 +60,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const STATUS_VARIANTS: Record<string, string> = {
-  completed: "default",
-  processing: "secondary",
-  failed: "destructive",
+const STATUS_CLASSES: Record<string, string> = {
+  completed:
+    "border-emerald-200 bg-emerald-50/70 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-300",
+  processing:
+    "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300",
+  failed:
+    "border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300",
 };
 
 type SortKey = "filename" | "status" | "source" | "created_at";
@@ -132,7 +136,7 @@ function SortableHeader({
 }) {
   const isActive = currentSort === sortKey;
   return (
-    <TableHead className={className}>
+    <TableHead className={cn("normal-case text-xs font-semibold text-muted-foreground", className)}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
@@ -727,7 +731,7 @@ export default function KnowledgeBasePage() {
                       currentDir={sortDir}
                       onSort={handleSort}
                     />
-                    <TableHead>Product</TableHead>
+                    <TableHead className="normal-case text-xs font-semibold text-muted-foreground">Product</TableHead>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
@@ -742,7 +746,7 @@ export default function KnowledgeBasePage() {
                       currentDir={sortDir}
                       onSort={handleSort}
                     />
-                    <TableHead className="text-right pr-4">Actions</TableHead>
+                    <TableHead className="text-right pr-4 normal-case text-xs font-semibold text-muted-foreground">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -771,35 +775,24 @@ export default function KnowledgeBasePage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">
+                        <span className="text-sm text-muted-foreground">
                           {doc.product || "Unassigned"}
-                        </Badge>
+                        </span>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            doc.source === "minio" ? "secondary" : "outline"
-                          }
-                          className="gap-1"
-                        >
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                           {doc.source === "minio" ? (
                             <Database className="size-3" />
                           ) : (
                             <FileText className="size-3" />
                           )}
                           {doc.source === "minio" ? "MinIO" : "Upload"}
-                        </Badge>
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={
-                            (STATUS_VARIANTS[doc.status] || "outline") as
-                              | "default"
-                              | "secondary"
-                              | "destructive"
-                              | "outline"
-                          }
-                          className="gap-1"
+                          variant="outline"
+                          className={cn("gap-1", STATUS_CLASSES[doc.status] || "border-slate-200 bg-slate-50 text-slate-600")}
                         >
                           <StatusIcon status={doc.status} />
                           {doc.status}

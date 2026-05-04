@@ -38,7 +38,7 @@ export function FileUpload({
         "group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors duration-200",
         isDragActive
           ? "border-primary/50 bg-muted/60"
-          : "border-muted-foreground/25 bg-muted/30 hover:border-muted-foreground/40 hover:bg-muted/50"
+          : "border-muted-foreground/20 bg-muted/40 hover:border-muted-foreground/35 hover:bg-muted/60"
       )}
     >
       <input {...getInputProps()} />
