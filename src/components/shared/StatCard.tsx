@@ -24,8 +24,8 @@ export function StatCard({
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
-        <div className="rounded-lg border bg-background p-2">
-          <Icon className="size-4 text-primary" />
+        <div className="flex size-9 items-center justify-center rounded-xl bg-muted/60">
+          <Icon className="size-[18px] text-slate-500 dark:text-slate-400" />
         </div>
       </CardHeader>
       <CardContent>

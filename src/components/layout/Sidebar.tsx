@@ -116,7 +116,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
 
       <div className="px-4 pt-5 pb-2">
         <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-4 h-9 text-sm font-medium text-white transition-all duration-200 hover:bg-slate-700 hover:shadow-md active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none select-none">
+          <DropdownMenuTrigger className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 h-9 text-sm font-medium text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none select-none">
             <Plus className="size-4" strokeWidth={2.5} />
             <span>Create New</span>
             <ChevronDown className="ml-auto size-3.5 opacity-50" />

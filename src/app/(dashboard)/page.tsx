@@ -140,10 +140,10 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-6 overflow-hidden px-6 py-6">
-      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4 sm:gap-6 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight">
             Welcome back, {user?.name?.split(" ")[0] || "there"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -152,15 +152,15 @@ export default function HomePage() {
         </div>
         <div className="flex gap-2">
           <Link href="/rfi/upload">
-            <Button variant="outline">Upload RFI</Button>
+            <Button variant="outline" size="sm" className="sm:!h-9 sm:!text-sm">Upload RFI</Button>
           </Link>
           <Link href="/rfp/upload">
-            <Button>New RFP</Button>
+            <Button size="sm" className="sm:!h-9 sm:!text-sm">New RFP</Button>
           </Link>
         </div>
       </div>
 
-      <div className="grid shrink-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid shrink-0 gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total RFI"
           value={stats?.total_rfi || 0}
@@ -187,8 +187,8 @@ export default function HomePage() {
         />
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Card className="flex min-h-0 flex-col border-border/70 shadow-sm">
+      <div className="grid min-h-0 flex-1 gap-4 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="flex min-h-[280px] max-h-[480px] xl:max-h-none xl:min-h-0 flex-col border-border/70 shadow-sm">
           <CardHeader className="flex-row items-center justify-between space-y-0 border-b py-3">
             <CardTitle className="flex items-center gap-2">
               {tab === "rfi" ? (
@@ -283,7 +283,7 @@ export default function HomePage() {
                                 size="icon-sm"
                                 onClick={() => handleDeleteRfi(doc)}
                                 disabled={deleting}
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                               >
                                 {deleting ? (
                                   <Loader2 className="size-4 animate-spin" />
@@ -354,7 +354,7 @@ export default function HomePage() {
                               size="icon-sm"
                               onClick={() => handleDeleteRfp(doc)}
                               disabled={deleting}
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             >
                               {deleting ? (
                                 <Loader2 className="size-4 animate-spin" />
@@ -373,7 +373,7 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 flex-col border-border/70 shadow-sm">
+        <Card className="flex min-h-[280px] max-h-[420px] xl:max-h-none xl:min-h-0 flex-col border-border/70 shadow-sm">
           <CardHeader className="flex-row items-center justify-between space-y-0 border-b py-3">
             <CardTitle className="flex items-center gap-2">
               <FileClock className="size-5" />
@@ -381,7 +381,7 @@ export default function HomePage() {
             </CardTitle>
             <span className="text-xs text-muted-foreground">Newest first</span>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-auto">
+          <CardContent className="scrollbar-thin min-h-0 flex-1 overflow-auto">
             {sortedHistory.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No activity found.</p>
             ) : (
@@ -399,17 +399,17 @@ export default function HomePage() {
                       key={log.id}
                       className="flex items-center gap-3 rounded-lg border bg-card/50 p-3"
                     >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                         {isUpload ? (
-                          <FileSpreadsheet className="size-4 text-blue-600" />
+                          <FileSpreadsheet className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : isGenerate ? (
-                          <Sparkles className="size-4 text-purple-600" />
+                          <Sparkles className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : isUpdate ? (
-                          <Activity className="size-4 text-emerald-600" />
+                          <Activity className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : isDelete ? (
-                          <Trash2 className="size-4 text-red-600" />
+                          <Trash2 className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : (
-                          <FileClock className="size-4 text-muted-foreground" />
+                          <FileClock className="size-4 text-slate-400 dark:text-slate-500" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
