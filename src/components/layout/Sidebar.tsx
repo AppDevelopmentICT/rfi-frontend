@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Trash2,
   Users,
-  BookOpen,
   FileSpreadsheet,
   FileSignature,
   Loader2,
@@ -102,46 +101,55 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-border/40 bg-sidebar">
+    <div className="flex h-full w-64 flex-col border-r border-gray-200/60 bg-sidebar">
       <div className="flex items-center gap-2.5 px-5 pt-5 pb-1">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <BookOpen className="size-4" strokeWidth={2.5} />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/ICT-Logo.png"
+          alt="ICT Logo"
+          className="size-8 object-contain"
+        />
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
-          RFI Platform
+          RFI/RFP Platform
         </span>
       </div>
 
       <div className="px-4 pt-5 pb-2">
         <DropdownMenu>
-          <DropdownMenuTrigger
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 h-8 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none select-none"
-          >
+          <DropdownMenuTrigger className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-4 h-9 text-sm font-medium text-white transition-all duration-200 hover:bg-slate-700 hover:shadow-md active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none select-none">
             <Plus className="size-4" strokeWidth={2.5} />
             <span>Create New</span>
-            <ChevronDown className="ml-auto size-3.5 opacity-60" />
+            <ChevronDown className="ml-auto size-3.5 opacity-50" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[224px] shadow-xl">
+          <DropdownMenuContent
+            align="start"
+            alignOffset={4}
+            className="w-[232px] rounded-xl border border-gray-200/80 bg-white p-1.5 shadow-xl shadow-black/[0.08]"
+          >
             <DropdownMenuItem
-              className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer"
+              className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-gray-50 focus:bg-gray-50"
               onClick={() => router.push("/rfi/upload")}
             >
-              <FileSpreadsheet className="size-4 shrink-0 text-foreground/70" />
+              <FileSpreadsheet className="size-4 shrink-0 text-slate-500" />
               <div>
-                <p className="text-[13px] font-semibold text-foreground">New RFI</p>
-                <p className="text-[11px] leading-snug text-muted-foreground">
+                <p className="text-[13px] font-semibold text-slate-800">
+                  New RFI
+                </p>
+                <p className="text-[11px] leading-snug text-slate-400">
                   Upload Excel
                 </p>
               </div>
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer"
+              className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-gray-50 focus:bg-gray-50"
               onClick={() => router.push("/rfp/upload")}
             >
-              <FileSignature className="size-4 shrink-0 text-foreground/70" />
+              <FileSignature className="size-4 shrink-0 text-slate-500" />
               <div>
-                <p className="text-[13px] font-semibold text-foreground">New RFP</p>
-                <p className="text-[11px] leading-snug text-muted-foreground">
+                <p className="text-[13px] font-semibold text-slate-800">
+                  New RFP
+                </p>
+                <p className="text-[11px] leading-snug text-slate-400">
                   Generate Ch.3
                 </p>
               </div>
@@ -190,35 +198,6 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors",
                       active
                         ? "bg-muted font-semibold text-foreground"
-                        : "font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                    )}
-                  >
-                    <item.icon className="size-5 shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        )}
-
-        {activeJobs.length > 0 && (
-          <div className="mt-6">
-            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground tracking-wider">
-              ADMIN
-            </p>
-            <nav className="flex flex-col gap-0.5">
-              {adminNavItems.map((item) => {
-                const active = isActivePath(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={isMobile ? onClose : undefined}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors duration-150",
-                      active
-                        ? "bg-muted text-foreground font-semibold"
                         : "font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     )}
                   >
@@ -284,7 +263,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
       </ScrollArea>
 
       {ready && user && (
-        <div className="mt-auto border-t px-4 py-3">
+        <div className="mt-auto border-t border-border/40 px-4 py-3">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
               {initials}
