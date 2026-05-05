@@ -108,6 +108,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [isTimelineAccordionOpen, setIsTimelineAccordionOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isAdjusting, setIsAdjusting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const projectRef = useRef<RFPProjectResponse | null>(null);
   const isDirtyRef = useRef(false);
@@ -231,6 +232,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       streamHasChunksRef.current = false;
       setStreamingChunks("");
       setWarningMessage(null);
+      setPendingMessage(null);
     },
     onChunk: (chunk) => {
       setStreamingChunks((prev) => {
@@ -252,6 +254,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       streamingActiveRef.current = false;
       lastGenerationRef.current = null;
       backgroundFallbackStartedRef.current = false;
+      setPendingMessage(null);
+      setIsAdjusting(false);
       const html = markdownToHtml(full);
       if (editor) {
         editorHydrateRef.current = true;
@@ -285,28 +289,33 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       streamingActiveRef.current = false;
       autoGenerateStartedRef.current = false;
       backgroundFallbackStartedRef.current = false;
+      setPendingMessage(null);
+      setIsAdjusting(false);
       setStreamingChunks("");
       setWarningMessage(null);
       toast.error(message);
     },
-    onIncomplete: (partial) => {
+    onIncomplete: (partialContent, reason) => {
       streamingActiveRef.current = false;
-      autoGenerateStartedRef.current = false;
-      backgroundFallbackStartedRef.current = false;
+      streamHasChunksRef.current = false;
+      setPendingMessage(null);
+      setIsAdjusting(false);
       setStreamingChunks("");
       setWarningMessage(null);
       toast.error("AI generation interrupted. Trying background fallback...");
       queueBackgroundFallback("connection lost");
     },
-    onIncomplete: (_partialContent, reason) => {
-      streamingActiveRef.current = false;
-      streamHasChunksRef.current = false;
-      queueBackgroundFallback(reason);
-    },
   });
 
   const isBusy = stream.isStreaming || isSaving;
-  const messages = useMemo(() => project?.chat_messages || [], [project?.chat_messages]);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const messages = useMemo(() => {
+    const base = project?.chat_messages || [];
+    if (pendingMessage) {
+      return [...base, { role: "user" as const, content: pendingMessage, created_at: new Date().toISOString(), user: user ? { id: user.id, name: user.name, email: user.email } : null }];
+    }
+    return base;
+  }, [project?.chat_messages, pendingMessage, user]);
 
   const ensureLock = useCallback(async () => {
     const current = projectRef.current;
@@ -392,15 +401,17 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const handlePrompt = async () => {
     const userPrompt = prompt.trim();
     if (!project || !userPrompt || isBusy) return;
+    setPendingMessage(userPrompt);
+    setPrompt("");
     try {
       const locked = await ensureLock();
       const afterUser = await appendRfpChat(locked.documentId, {
         role: "user",
         content: userPrompt,
       });
+      setPendingMessage(null);
       projectRef.current = afterUser;
       setProject(afterUser);
-      setPrompt("");
       const currentContent = editor?.getText().trim() || "";
       if (currentContent) {
         lastGenerationRef.current = {
@@ -409,13 +420,17 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
           additionalContext: userPrompt,
         };
         backgroundFallbackStartedRef.current = false;
+        setIsAdjusting(true);
         stream.adjust(locked.product, currentContent, userPrompt);
       } else {
         lastGenerationRef.current = { adjust: false };
         backgroundFallbackStartedRef.current = false;
+        setIsAdjusting(false);
         stream.generate(locked.product);
       }
     } catch (error: unknown) {
+      setPendingMessage(null);
+      setPrompt(userPrompt);
       toast.error(getErrorMessage(error, "Could not send prompt"));
     }
   };
@@ -637,7 +652,9 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Sparkles className="size-4 animate-pulse text-muted-foreground" />
-                  <span className="font-semibold text-foreground">AI is writing Chapter 3 in Indonesian...</span>
+                  <span className="font-semibold text-foreground">
+                    {isAdjusting ? "AI is revising Chapter 3..." : "AI is drafting Chapter 3..."}
+                  </span>
                   <span className="ml-2 inline-flex items-center gap-1 text-muted-foreground">
                     <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
                     <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:120ms]" />
@@ -683,14 +700,17 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 response will stream into the editor and be saved automatically.
               </div>
             )}
-            {messages.map((message, index) => (
+            {messages.map((message, index) => {
+              const isOptimistic = pendingMessage !== null && index === messages.length - 1 && message.role === "user" && message.content === pendingMessage;
+              return (
               <div
-                key={`${message.created_at || index}-${message.role}`}
+                key={`${message.created_at || index}-${message.role}-${index}`}
                 className={cn(
-                  "rounded-2xl px-3 py-2 text-sm",
+                  "rounded-2xl px-3 py-2 text-sm transition-all duration-200",
                   message.role === "user"
                     ? "ml-6 bg-muted/60"
                     : "mr-6 border bg-muted/40",
+                  isOptimistic && "animate-pulse opacity-70",
                 )}
               >
                 <div
@@ -716,7 +736,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                   />
                 )}
               </div>
-            ))}
+            );
+            })}
               {stream.isStreaming && (
                 <div className="mr-6 rounded-2xl border bg-muted/40 px-3 py-2 text-sm">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -744,8 +765,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 }}
                 placeholder={
                   editor?.getText().trim()
-                    ? "Ask for an adjustment (Indonesian)..."
-                    : "Generate Bab 3 detail produk in Indonesian..."
+                    ? "Ask for an adjustment..."
+                    : "Generate Bab 3 detail produk..."
                 }
                 disabled={isBusy || Boolean(project.is_locked_by_other)}
                 className="min-h-20 resize-none"
