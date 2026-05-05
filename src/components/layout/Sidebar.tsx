@@ -158,8 +158,8 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         </DropdownMenu>
       </div>
 
-      <ScrollArea className="flex-1 px-3 py-3">
-        <nav className="flex flex-col gap-0.5">
+      <ScrollArea className="flex-1 px-3 py-4">
+        <nav className="flex flex-col gap-1">
           {mainNavItems.map((item) => {
             const active = isActivePath(item.href);
             return (
@@ -168,7 +168,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                 href={item.href}
                 onClick={isMobile ? onClose : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] transition-colors",
                   active
                     ? "bg-muted font-semibold text-foreground"
                     : "font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -182,11 +182,11 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         </nav>
 
         {isAdmin && (
-          <div className="mt-6">
+          <div className="mt-8">
             <p className="text-xs font-semibold text-muted-foreground tracking-wider px-3 mb-2">
               Admin
             </p>
-            <nav className="flex flex-col gap-0.5">
+            <nav className="flex flex-col gap-1">
               {adminNavItems.map((item) => {
                 const active = isActivePath(item.href);
                 return (
@@ -195,7 +195,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                     href={item.href}
                     onClick={isMobile ? onClose : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors",
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] transition-colors",
                       active
                         ? "bg-muted font-semibold text-foreground"
                         : "font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -211,15 +211,15 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         )}
 
         {activeJobs.length > 0 && (
-          <div className="mt-5">
-            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground tracking-wider">
+          <div className="mt-8">
+            <p className="px-3 mb-2.5 text-xs font-semibold text-muted-foreground tracking-wider">
               Active
             </p>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               {activeJobs.map((job) => (
                 <div
                   key={job.id}
-                  className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-muted/60 cursor-pointer"
+                  className="flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-xs transition-colors hover:bg-muted/60 cursor-pointer"
                   onClick={() => {
                     if (job.status !== "failed") {
                       useRFIStore.setState({ fileName: job.filename });
@@ -228,9 +228,9 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                   }}
                 >
                   {job.status === "generating" ? (
-                    <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
+                    <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
                   ) : job.status === "completed" ? (
-                    <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="size-3.5 text-slate-500 shrink-0" />
                   ) : (
                     <AlertCircle className="size-3.5 text-destructive shrink-0" />
                   )}

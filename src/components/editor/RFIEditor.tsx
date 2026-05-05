@@ -163,9 +163,9 @@ export function RFIEditor({
             </div>
           )}
           {isEditing && (
-            <div className="m-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 shadow-sm">
+            <div className="m-6 rounded-lg border border-border/60 bg-[#f8fafc] p-4 text-sm text-slate-700 shadow-sm">
               <div className="font-semibold">You are editing this file</div>
-              <p className="mt-1">Other users cannot edit it until you click Save Changes or Cancel.</p>
+              <p className="mt-1 text-slate-500">Other users cannot edit it until you click Save Changes or Cancel.</p>
             </div>
           )}
           {(!isCompleted && !isGenerating && !file && !fileBase64) && (
@@ -177,25 +177,27 @@ export function RFIEditor({
             </div>
           )}
           {isGenerating && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4 shadow-sm mb-6 m-6 flex items-center gap-4">
+            <div className="rounded-lg border border-border/60 bg-[#f8fafc] p-4 shadow-sm mb-6 m-6 flex items-center gap-4">
               <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-30" />
-                <span className="relative inline-flex h-6 w-6 rounded-full bg-blue-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-slate-300 opacity-40" />
+                <span className="relative inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-400">
+                  <span className="block h-1.5 w-1.5 rounded-full bg-white" />
+                </span>
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-blue-900">Generating answers...</h2>
-                <p className="text-xs text-blue-700">Your workbook is being processed in the background. You can leave and come back anytime.</p>
+                <h2 className="text-sm font-semibold text-slate-700">Generating answers...</h2>
+                <p className="text-xs text-slate-500">Your workbook is being processed in the background. You can leave and come back anytime.</p>
               </div>
             </div>
           )}
           {isCompleted && (
-            <div className="rounded-lg border border-green-200 bg-green-50/50 p-4 shadow-sm mb-6 m-6 flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
-                <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+            <div className="rounded-lg border border-border/60 bg-[#f8fafc] p-4 shadow-sm mb-6 m-6 flex items-center gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                <svg className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-green-900">Workbook filled successfully</h2>
-                <p className="text-xs text-green-700">You can now review and export your responses.</p>
+                <h2 className="text-sm font-semibold text-slate-700">Workbook filled successfully</h2>
+                <p className="text-xs text-slate-500">You can now review and export your responses.</p>
               </div>
             </div>
           )}

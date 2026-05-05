@@ -1,7 +1,6 @@
 "use client";
 
 import { useExcelStore } from "@/store/useExcelStore";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface ExcelTableProps {
@@ -34,19 +33,22 @@ export function ExcelTable({
     <div className="flex flex-col gap-4">
       {/* Sheet tabs */}
       {sheetNames.length > 1 && (
-        <div className="flex items-center gap-1 border-b pb-2">
+        <div className="flex items-center gap-0">
           {sheetNames.map((name) => (
             <button
               key={name}
               onClick={() => setActiveSheet(name)}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "relative px-4 py-2.5 text-sm font-medium transition-colors",
                 name === activeSheet
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               {name}
+              {name === activeSheet && (
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary rounded-full" />
+              )}
             </button>
           ))}
         </div>
@@ -54,23 +56,23 @@ export function ExcelTable({
 
       {/* Data summary */}
       <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="tabular-nums">
+        <span className="inline-flex items-center rounded-md bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground tabular-nums">
           {data.length} rows
-        </Badge>
-        <Badge variant="outline" className="tabular-nums">
+        </span>
+        <span className="inline-flex items-center rounded-md bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground tabular-nums">
           {headers.length} columns
-        </Badge>
+        </span>
       </div>
 
       {/* Table */}
-      <div className="overflow-auto rounded-lg border">
+      <div className="overflow-auto rounded-lg border border-border/50">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-muted/50">
+            <tr className="border-b border-border/50 bg-muted/30">
               {headers.map((header, idx) => (
                 <th
                   key={idx}
-                  className="whitespace-nowrap px-4 py-3 text-left font-semibold text-foreground"
+                  className="whitespace-nowrap px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                 >
                   {header}
                 </th>
@@ -81,7 +83,10 @@ export function ExcelTable({
             {data.map((row, rowIdx) => (
               <tr
                 key={rowIdx}
-                className="border-b transition-colors hover:bg-muted/30 last:border-0"
+                className={cn(
+                  "border-b border-border/40 transition-colors last:border-0",
+                  rowIdx % 2 === 1 && "bg-muted/20"
+                )}
               >
                 {headers.map((header, colIdx) => {
                   const value = row[header];
@@ -94,12 +99,11 @@ export function ExcelTable({
                     <td
                       key={colIdx}
                       className={cn(
-                        "max-w-xs px-4 py-3 align-top",
+                        "max-w-xs px-4 py-4 align-top leading-relaxed",
                         isEmpty
-                          ? "bg-amber-500/5 text-muted-foreground italic"
+                          ? "text-muted-foreground/60 italic"
                           : "text-foreground",
-                        isGenerated && !readOnly ? "hover:bg-muted cursor-text" : "truncate",
-                        readOnly && "cursor-not-allowed bg-muted/20"
+                        isGenerated && !readOnly ? "hover:bg-muted/50 cursor-text" : "truncate"
                       )}
                       contentEditable={isGenerated && !readOnly}
                       suppressContentEditableWarning={true}

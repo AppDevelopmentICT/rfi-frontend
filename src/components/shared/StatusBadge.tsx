@@ -7,7 +7,7 @@ interface StatusBadgeProps {
 }
 
 const statusStyles: Record<string, string> = {
-  completed: "border-emerald-200 bg-emerald-50/70 text-emerald-700",
+  completed: "border-slate-200/80 bg-slate-50/60 text-slate-700",
   generating: "border-slate-200 bg-slate-50 text-slate-600",
   failed: "border-slate-200 bg-slate-50 text-slate-600",
   editing: "border-slate-200 bg-slate-50 text-slate-600",
