@@ -42,6 +42,19 @@ function syncAuthCookie(token: string | null) {
   }
 }
 
+const AUTH_BYPASS = process.env.NEXT_PUBLIC_AUTH_BYPASS === "true";
+const BYPASS_USER: AuthModel = {
+  id: "bypass-temp-user",
+  email: "temporary-admin-email@infracom-tech.com",
+  name: "Temporary Admin",
+  is_admin: true,
+  verified: true,
+  created: new Date().toISOString(),
+  updated: new Date().toISOString(),
+  collectionId: "",
+  collectionName: "users",
+};
+
 export function PocketBaseAuthProvider({ children }: { children: ReactNode }) {
   // Never initialize from PocketBase/localStorage synchronously — that differs SSR vs browser
   // and causes hydration mismatches. Restore session only after mount.
@@ -50,6 +63,10 @@ export function PocketBaseAuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   const hydrateAdminProfile = useCallback(async () => {
+    if (AUTH_BYPASS) {
+      setUser(BYPASS_USER);
+      return;
+    }
     if (!pb.authStore.token || !pb.authStore.record) {
       setUser(pb.authStore.record as AuthModel | null);
       return;
@@ -67,6 +84,13 @@ export function PocketBaseAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (AUTH_BYPASS) {
+      setToken("bypass");
+      setReady(true);
+      hydrateAdminProfile();
+      return;
+    }
+
     clearAuthIfWrongCompanyDomain();
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -85,6 +109,7 @@ export function PocketBaseAuthProvider({ children }: { children: ReactNode }) {
   }, [hydrateAdminProfile]);
 
   const signOut = useCallback(() => {
+    if (AUTH_BYPASS) return; // bypass mode: sign out is a no-op
     pb.authStore.clear();
     syncAuthCookie(null);
   }, []);

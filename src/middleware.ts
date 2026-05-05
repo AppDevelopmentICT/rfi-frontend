@@ -8,8 +8,14 @@ const AUTH_PATHS = ["/login", "/register"];
 const DISABLE_SELF_REGISTER =
   process.env.NEXT_PUBLIC_DISABLE_SELF_REGISTER === "true";
 
+const AUTH_BYPASS = process.env.NEXT_PUBLIC_AUTH_BYPASS === "true";
+
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+
+  if (AUTH_BYPASS) {
+    return NextResponse.next();
+  }
 
   if (DISABLE_SELF_REGISTER && (path === "/register" || path.startsWith("/register/"))) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
