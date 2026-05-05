@@ -124,7 +124,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
           <DropdownMenuContent
             align="start"
             alignOffset={4}
-            className="w-[232px] rounded-xl border border-gray-200/80 bg-white p-1.5 shadow-xl shadow-black/[0.08]"
+            className="rounded-xl border border-gray-200/80 bg-white p-1.5 shadow-xl shadow-black/[0.08]"
           >
             <DropdownMenuItem
               className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-gray-50 focus:bg-gray-50"
