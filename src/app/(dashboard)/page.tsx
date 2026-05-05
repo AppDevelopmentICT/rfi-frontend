@@ -46,6 +46,7 @@ import { Badge } from "@/components/ui/badge";
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { ActionButtons } from "@/components/shared/ActionButtons";
 import { cn } from "@/lib/utils";
 
 type Tab = "rfi" | "rfp";
@@ -56,9 +57,12 @@ function getErrorMessage(error: unknown, fallback = "Request failed") {
     typeof error === "object" &&
     error !== null &&
     "response" in error &&
-    typeof (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail === "string"
+    typeof (error as { response?: { data?: { detail?: unknown } } }).response
+      ?.data?.detail === "string"
   ) {
-    return String((error as { response: { data: { detail: string } } }).response.data.detail);
+    return String(
+      (error as { response: { data: { detail: string } } }).response.data.detail
+    );
   }
   return fallback;
 }
@@ -76,7 +80,11 @@ export default function HomePage() {
   const loadData = useCallback(async () => {
     try {
       const [statsData, historyData, rfiData, rfpData] = await Promise.all([
-        getDashboardStats().catch(() => ({ total_rfi: 0, generated_rfi: 0, active_documents: 0 })),
+        getDashboardStats().catch(() => ({
+          total_rfi: 0,
+          generated_rfi: 0,
+          active_documents: 0,
+        })),
         getDashboardHistory(20).catch(() => []),
         listMyRfiDocuments().catch(() => []),
         listMyRfpProjects().catch(() => []),
@@ -97,13 +105,18 @@ export default function HomePage() {
   const sortedHistory = useMemo(
     () =>
       [...history].sort((a, b) =>
-        (b.created_at || "").localeCompare(a.created_at || ""),
+        (b.created_at || "").localeCompare(a.created_at || "")
       ),
-    [history],
+    [history]
   );
 
   const handleDeleteRfi = async (doc: RFIProjectResponse) => {
-    if (!window.confirm(`Move "${doc.fileName}" to Trash? Admins can restore it later.`)) return;
+    if (
+      !window.confirm(
+        `Move "${doc.fileName}" to Trash? Admins can restore it later.`
+      )
+    )
+      return;
     setPendingDelete(`rfi:${doc.documentId}`);
     try {
       await softDeleteRfiDocument(doc.documentId);
@@ -118,7 +131,10 @@ export default function HomePage() {
 
   const handleDeleteRfp = async (doc: RFPProjectResponse) => {
     const label = doc.project_name || `${doc.product} – Chapter 3`;
-    if (!window.confirm(`Move "${label}" to Trash? Admins can restore it later.`)) return;
+    if (
+      !window.confirm(`Move "${label}" to Trash? Admins can restore it later.`)
+    )
+      return;
     setPendingDelete(`rfp:${doc.documentId}`);
     try {
       await softDeleteRfpProject(doc.documentId);
@@ -134,7 +150,9 @@ export default function HomePage() {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
-        <p className="animate-pulse text-muted-foreground">Loading dashboard...</p>
+        <p className="animate-pulse text-muted-foreground">
+          Loading dashboard...
+        </p>
       </div>
     );
   }
@@ -150,14 +168,7 @@ export default function HomePage() {
             Review your generated RFI/RFP projects and recent activity.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/rfi/upload">
-            <Button variant="outline" size="sm" className="sm:!h-9 sm:!text-sm">Upload RFI</Button>
-          </Link>
-          <Link href="/rfp/upload">
-            <Button size="sm" className="sm:!h-9 sm:!text-sm">New RFP</Button>
-          </Link>
-        </div>
+        <ActionButtons buttonClassName="sm:!h-9 sm:!text-sm" />
       </div>
 
       <div className="grid shrink-0 gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
@@ -232,7 +243,7 @@ export default function HomePage() {
                     Upload a workbook and run auto-fill to see it here.
                   </p>
                   <Link href="/rfi/upload">
-                    <Button className="mt-4" size="sm">
+                    <Button className="mt-4">
                       Upload RFI
                     </Button>
                   </Link>
@@ -249,11 +260,15 @@ export default function HomePage() {
                   </TableHeader>
                   <TableBody>
                     {rfiDocs.map((doc) => {
-                      const deleting = pendingDelete === `rfi:${doc.documentId}`;
+                      const deleting =
+                        pendingDelete === `rfi:${doc.documentId}`;
                       return (
                         <TableRow key={doc.documentId}>
                           <TableCell className="font-medium">
-                            <Link className="hover:underline" href={`/rfi/${doc.documentId}`}>
+                            <Link
+                              className="hover:underline"
+                              href={`/rfi/${doc.documentId}`}
+                            >
                               {doc.fileName}
                             </Link>
                           </TableCell>
@@ -303,10 +318,11 @@ export default function HomePage() {
               <div className="m-6 rounded-xl border border-dashed p-8 text-center">
                 <p className="font-medium">No RFP projects yet</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Create an RFP to generate Chapter 3 product details with the AI assistant.
+                  Create an RFP to generate Chapter 3 product details with the
+                  AI assistant.
                 </p>
                 <Link href="/rfp/upload">
-                  <Button className="mt-4" size="sm">
+                  <Button className="mt-4">
                     New RFP
                   </Button>
                 </Link>
@@ -324,12 +340,16 @@ export default function HomePage() {
                 </TableHeader>
                 <TableBody>
                   {rfpDocs.map((doc) => {
-                    const label = doc.project_name || `${doc.product} – Chapter 3`;
+                    const label =
+                      doc.project_name || `${doc.product} – Chapter 3`;
                     const deleting = pendingDelete === `rfp:${doc.documentId}`;
                     return (
                       <TableRow key={doc.documentId}>
                         <TableCell className="font-medium">
-                          <Link className="hover:underline" href={`/rfp/${doc.documentId}`}>
+                          <Link
+                            className="hover:underline"
+                            href={`/rfp/${doc.documentId}`}
+                          >
                             {label}
                           </Link>
                         </TableCell>
@@ -340,7 +360,9 @@ export default function HomePage() {
                           <StatusBadge status={doc.status} />
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          <RelativeTime iso={doc.updated_at || doc.created_at} />
+                          <RelativeTime
+                            iso={doc.updated_at || doc.created_at}
+                          />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -383,7 +405,9 @@ export default function HomePage() {
           </CardHeader>
           <CardContent className="scrollbar-thin min-h-0 flex-1 overflow-auto">
             {sortedHistory.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">No activity found.</p>
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No activity found.
+              </p>
             ) : (
               <div className="space-y-2">
                 {sortedHistory.map((log) => {
@@ -392,7 +416,9 @@ export default function HomePage() {
                     log.action.includes("autofill") ||
                     log.action.includes("generate") ||
                     log.action === "rfp.assistant";
-                  const isUpdate = log.action.includes("update") || log.action.includes("save");
+                  const isUpdate =
+                    log.action.includes("update") ||
+                    log.action.includes("save");
                   const isDelete = log.action.includes("delete");
                   return (
                     <div
@@ -416,10 +442,15 @@ export default function HomePage() {
                         <p className="truncate text-sm font-medium">
                           {(log.details?.filename as string | undefined) ||
                             (log.details?.project_name as string | undefined) ||
-                            log.action.replace("rfi.", "RFI ").replace("rfp.", "RFP ")}
+                            log.action
+                              .replace("rfi.", "RFI ")
+                              .replace("rfp.", "RFP ")}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {log.action.replace("rfi.", "").replace("rfp.", "").replace(/_/g, " ")}
+                          {log.action
+                            .replace("rfi.", "")
+                            .replace("rfp.", "")
+                            .replace(/_/g, " ")}
                         </p>
                       </div>
                       <RelativeTime

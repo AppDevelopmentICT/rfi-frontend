@@ -33,6 +33,7 @@ import {
   softDeleteRfpProject,
   type RFPProjectResponse,
 } from "@/services/rfp.service";
+import { ActionButtons } from "@/components/shared/ActionButtons";
 import { cn } from "@/lib/utils";
 
 type Tab = "rfi" | "rfp";
@@ -153,14 +154,7 @@ export default function DocumentsPage() {
             All generated RFI and RFP projects, owners, and active editing locks.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/rfi/upload">
-            <Button variant="outline">New RFI</Button>
-          </Link>
-          <Link href="/rfp/upload">
-            <Button>New RFP</Button>
-          </Link>
-        </div>
+        <ActionButtons size="default" />
       </div>
 
       <Card className="border-border/70 shadow-sm">
