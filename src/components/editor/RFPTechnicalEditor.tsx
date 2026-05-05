@@ -110,6 +110,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const [isChatOpen, setIsChatOpen] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const projectRef = useRef<RFPProjectResponse | null>(null);
+  const isDirtyRef = useRef(false);
   const editorHydrateRef = useRef(false);
   const streamingActiveRef = useRef(false);
   const streamHasChunksRef = useRef(false);
@@ -136,6 +137,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
     },
     onUpdate: () => {
       if (!editorHydrateRef.current && !streamingActiveRef.current) {
+        isDirtyRef.current = true;
         setIsDirty(true);
       }
     },
@@ -153,7 +155,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         setProject(nextProject);
         setTimeline(nextTimeline);
         setIsEditing(Boolean(nextProject.is_lock_held_by_me));
-        if (editor && !isDirty && !streamingActiveRef.current) {
+        if (editor && !isDirtyRef.current && !streamingActiveRef.current) {
           editorHydrateRef.current = true;
           editor.commands.setContent(nextProject.content || "");
           editorHydrateRef.current = false;
@@ -164,7 +166,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         setIsLoading(false);
       }
     },
-    [editor, isDirty, rfpId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor, rfpId],
   );
 
   useEffect(() => {
@@ -213,6 +216,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         });
         projectRef.current = queued;
         setProject(queued);
+        setWarningMessage(null);
         toast.info(`RFP generation moved to background: ${reason}`);
       } catch (error: unknown) {
         toast.error(getErrorMessage(error, "Could not queue background generation"));
@@ -255,6 +259,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         editorHydrateRef.current = false;
       }
       setStreamingChunks("");
+      isDirtyRef.current = false;
       setIsDirty(false);
       const current = projectRef.current;
       if (!current) return;
@@ -278,9 +283,20 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
     },
     onError: (message) => {
       streamingActiveRef.current = false;
-      streamHasChunksRef.current = false;
-      toast.error(message || "Generation failed");
-      queueBackgroundFallback("connection error");
+      autoGenerateStartedRef.current = false;
+      backgroundFallbackStartedRef.current = false;
+      setStreamingChunks("");
+      setWarningMessage(null);
+      toast.error(message);
+    },
+    onIncomplete: (partial) => {
+      streamingActiveRef.current = false;
+      autoGenerateStartedRef.current = false;
+      backgroundFallbackStartedRef.current = false;
+      setStreamingChunks("");
+      setWarningMessage(null);
+      toast.error("AI generation interrupted. Trying background fallback...");
+      queueBackgroundFallback("connection lost");
     },
     onIncomplete: (_partialContent, reason) => {
       streamingActiveRef.current = false;
@@ -319,6 +335,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       projectRef.current = released;
       setProject(released);
       setIsEditing(false);
+      isDirtyRef.current = false;
       setIsDirty(false);
       if (editor) {
         editorHydrateRef.current = true;
@@ -341,6 +358,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       projectRef.current = saved;
       setProject(saved);
       setIsEditing(false);
+      isDirtyRef.current = false;
       setIsDirty(false);
       toast.success("Changes saved");
     } catch (error: unknown) {
