@@ -210,10 +210,13 @@ export default function DocumentsPage() {
               {filters.map((item) => (
                 <Button
                   key={item}
-                  variant={filter === item ? "default" : "outline"}
+                  variant={filter === item ? "secondary" : "outline"}
                   size="sm"
                   onClick={() => setFilter(item)}
-                  className="capitalize"
+                  className={cn(
+                    "capitalize",
+                    filter === item && "bg-foreground/10 text-foreground font-semibold hover:bg-foreground/15",
+                  )}
                 >
                   {item}
                 </Button>
@@ -293,7 +296,7 @@ export default function DocumentsPage() {
                                 size="icon-sm"
                                 onClick={() => handleDeleteRfi(doc.documentId, doc.fileName)}
                                 disabled={deleting}
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                               >
                                 {deleting ? (
                                   <Loader2 className="size-4 animate-spin" />
@@ -390,7 +393,7 @@ export default function DocumentsPage() {
                               size="icon-sm"
                               onClick={() => handleDeleteRfp(doc.documentId, label)}
                               disabled={deleting}
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             >
                               {deleting ? (
                                 <Loader2 className="size-4 animate-spin" />
