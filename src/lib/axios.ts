@@ -11,13 +11,6 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  if (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true") {
-    const bypassToken = process.env.NEXT_PUBLIC_API_AUTH_SECRET || "";
-    if (bypassToken) {
-      config.headers.Authorization = `Bearer ${bypassToken}`;
-    }
-    return config;
-  }
   const token = pb.authStore.token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

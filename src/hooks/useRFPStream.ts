@@ -68,12 +68,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
 
   const sendPayload = useCallback(
     (payload: Record<string, unknown>) => {
-      let token: string | null = null;
-      if (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true") {
-        token = process.env.NEXT_PUBLIC_API_AUTH_SECRET || null;
-      } else {
-        token = pb.authStore.token;
-      }
+      const token = pb.authStore.token;
       if (!token) {
         toast.error("Sign in required.");
         return;
