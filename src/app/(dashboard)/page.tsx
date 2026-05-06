@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -48,6 +48,8 @@ import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ActionButtons } from "@/components/shared/ActionButtons";
 import { cn } from "@/lib/utils";
+import { useStaleData } from "@/hooks/useStaleData";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Tab = "rfi" | "rfp";
 
@@ -69,38 +71,42 @@ function getErrorMessage(error: unknown, fallback = "Request failed") {
 
 export default function HomePage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [history, setHistory] = useState<AuditLogEntry[]>([]);
-  const [rfiDocs, setRfiDocs] = useState<RFIProjectResponse[]>([]);
-  const [rfpDocs, setRfpDocs] = useState<RFPProjectResponse[]>([]);
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("rfi");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [statsData, historyData, rfiData, rfpData] = await Promise.all([
-        getDashboardStats().catch(() => ({
-          total_rfi: 0,
-          generated_rfi: 0,
-          active_documents: 0,
-        })),
-        getDashboardHistory(20).catch(() => []),
-        listMyRfiDocuments().catch(() => []),
-        listMyRfpProjects().catch(() => []),
-      ]);
-      setStats(statsData);
-      setHistory(historyData);
-      setRfiDocs(rfiData);
-      setRfpDocs(rfpData);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["dashboard-rfi"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-rfp"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-history"] });
+  }, [queryClient]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const { data: stats, isLoading: statsLoading } = useStaleData(
+    "dashboard-stats",
+    () => getDashboardStats().catch(() => ({
+      total_rfi: 0,
+      generated_rfi: 0,
+      active_documents: 0,
+    }))
+  );
+
+  const { data: history = [], isLoading: historyLoading } = useStaleData(
+    "dashboard-history",
+    () => getDashboardHistory(20).catch(() => [])
+  );
+
+  const { data: rfiDocs = [], isLoading: rfiLoading, refetch: refetchRfi } = useStaleData(
+    "dashboard-rfi",
+    () => listMyRfiDocuments().catch(() => [])
+  );
+
+  const { data: rfpDocs = [], refetch: refetchRfp } = useStaleData(
+    "dashboard-rfp",
+    () => listMyRfpProjects().catch(() => [])
+  );
+
+  const isLoading = statsLoading || historyLoading || rfiLoading;
 
   const sortedHistory = useMemo(
     () =>
@@ -121,9 +127,9 @@ export default function HomePage() {
     try {
       await softDeleteRfiDocument(doc.documentId);
       toast.success("Moved to Trash");
-      await loadData();
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, "Failed to delete RFI"));
+      refetch();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setPendingDelete(null);
     }
@@ -139,7 +145,7 @@ export default function HomePage() {
     try {
       await softDeleteRfpProject(doc.documentId);
       toast.success("Moved to Trash");
-      await loadData();
+      refetch();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Failed to delete RFP"));
     } finally {
