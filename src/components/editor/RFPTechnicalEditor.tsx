@@ -26,6 +26,13 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
+import Underline from "@tiptap/extension-underline";
+import TextAlign from "@tiptap/extension-text-align";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import CharacterCount from "@tiptap/extension-character-count";
+
+import { TipTapToolbar } from "./TipTapToolbar";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,7 +106,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const [timeline, setTimeline] = useState<RFPTimelineEntry[]>([]);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
@@ -122,18 +129,37 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        bulletList: false,
+        orderedList: false,
+      }),
       Placeholder.configure({
         placeholder:
           "Bab 3 (Detail Produk) akan ditulis di sini. Gunakan panel chat di kanan untuk membuat atau menyesuaikan responsnya.",
       }),
       Typography,
+      Underline,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: "text-blue-600 underline underline-offset-2 hover:text-blue-800",
+        },
+      }),
+      CharacterCount.configure({
+        limit: 50000,
+      }),
     ],
-    editable: false,
+    editable: true,
     editorProps: {
       attributes: {
         class:
-          "outline-none min-h-full prose prose-sm prose-neutral max-w-none dark:prose-invert prose-headings:font-semibold prose-p:leading-relaxed",
+          "outline-none min-h-[400px] px-1 prose prose-neutral max-w-none dark:prose-invert prose-headings:font-semibold prose-p:leading-relaxed prose-img:rounded-lg prose-img:border prose-img:border-border",
       },
     },
     onUpdate: () => {
@@ -155,7 +181,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         projectRef.current = nextProject;
         setProject(nextProject);
         setTimeline(nextTimeline);
-        setIsEditing(Boolean(nextProject.is_lock_held_by_me));
         if (editor && !isDirtyRef.current && !streamingActiveRef.current) {
           editorHydrateRef.current = true;
           editor.commands.setContent(nextProject.content || "");
@@ -663,9 +688,30 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 </div>
               </div>
             )}
+            {isEditing && (
+              <div className="border-b bg-muted/40 px-5 py-2">
+                <TipTapToolbar editor={editor} />
+              </div>
+            )}
             <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
               <EditorContent editor={editor} />
             </div>
+            {isEditing && editor && (
+              <div className="border-t px-5 py-2">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-3">
+                    <span>{editor.storage.characterCount.characters()} characters</span>
+                    <span>{editor.storage.characterCount.words()} words</span>
+                  </div>
+                  {isDirty && (
+                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                      <span className="size-1.5 rounded-full bg-amber-600 dark:bg-amber-400" />
+                      <span>Unsaved changes</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
