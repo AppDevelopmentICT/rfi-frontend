@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   FileText,
   FileIcon,
@@ -22,6 +22,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ import {
   bulkDeleteKnowledgeDocuments,
 } from "@/services/knowledge.service";
 import type { KBDocument, KBProduct, SyncResult } from "@/services/knowledge.service";
+import { useStaleData } from "@/hooks/useStaleData";
 import {
   Table,
   TableBody,
@@ -48,6 +50,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -158,10 +161,9 @@ function SortableHeader({
 }
 
 export default function KnowledgeBasePage() {
-  const [documents, setDocuments] = useState<KBDocument[]>([]);
+  const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
   const [pendingDelete, setPendingDelete] = useState<KBDocument | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -170,16 +172,32 @@ export default function KnowledgeBasePage() {
   const [uploadProduct, setUploadProduct] = useState("");
   const [uploadProductKnown, setUploadProductKnown] = useState(false);
   const [productFilter, setProductFilter] = useState("");
-  const [products, setProducts] = useState<KBProduct[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkAlertOpen, setBulkAlertOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [products, setProducts] = useState<KBProduct[]>([]);
   const PER_PAGE = 10;
+
+  const fetchKey = `kb-docs-${debouncedSearch}-${productFilter}-${sortKey}-${sortDir}-${page}`;
+
+  const { data: docsData, isLoading: isLoadingDocs, refetch: refetchDocs } = useStaleData(
+    fetchKey,
+    () => listKnowledgeDocuments({
+      search: debouncedSearch || undefined,
+      product: productFilter || undefined,
+      sort_by: sortKey,
+      sort_dir: sortDir,
+      page,
+      per_page: PER_PAGE,
+    })
+  );
+
+  const documents = docsData?.documents ?? [];
+  const totalPages = docsData?.total_pages ?? 1;
+  const totalCount = docsData?.total ?? 0;
 
   const allCurrentSelected = useMemo(
     () => documents.length > 0 && documents.every((d) => selectedIds.has(d.id)),
@@ -246,40 +264,9 @@ export default function KnowledgeBasePage() {
     setPage(1);
   }, []);
 
-  const loadDocuments = useCallback(
-    async (silent = false) => {
-      if (!silent) setIsLoadingDocs(true);
-      try {
-        const response = await listKnowledgeDocuments({
-          search: debouncedSearch || undefined,
-          product: productFilter || undefined,
-          sort_by: sortKey,
-          sort_dir: sortDir,
-          page,
-          per_page: PER_PAGE,
-        });
-        setDocuments(response.documents);
-        setTotalPages(response.total_pages);
-        setTotalCount(response.total);
-      } catch (error: unknown) {
-        console.error("Failed to load documents:", error);
-        if (!silent) toast.error("Failed to load knowledge base documents");
-      } finally {
-        setIsLoadingDocs(false);
-      }
-    },
-    [debouncedSearch, productFilter, sortKey, sortDir, page]
-  );
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedIds(new Set());
-  }, [debouncedSearch, productFilter, page]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadDocuments();
-  }, [loadDocuments]);
+  const invalidateDocs = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [fetchKey] });
+  }, [queryClient, fetchKey]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -296,56 +283,18 @@ export default function KnowledgeBasePage() {
 
     setIsUploading(true);
 
-    const pendingIds = acceptedFiles.map((_, i) => -(Date.now() + i));
-    const now = new Date().toISOString();
-    setDocuments((prev) => [
-      ...acceptedFiles.map((file, i) => ({
-        id: pendingIds[i],
-        filename: file.name,
-        status: "processing" as const,
-        source: "upload" as const,
-        product: productName,
-        minio_key: null,
-        created_at: now,
-      })),
-      ...prev,
-    ]);
-
-    for (let idx = 0; idx < acceptedFiles.length; idx++) {
-      const file = acceptedFiles[idx];
+    for (const file of acceptedFiles) {
       try {
-        const result = await ingestKnowledgeDocument(file, productName);
+        await ingestKnowledgeDocument(file, productName);
         toast.success(`Vectorized ${file.name} successfully`);
-
-        setDocuments((prev) =>
-          prev.map((doc) =>
-            doc.id === pendingIds[idx]
-              ? {
-                  id: result.document_id,
-                  filename: file.name,
-                  status:
-                    result.status === "success" ? "completed" : result.status,
-                  source: "upload" as const,
-                  product: productName,
-                  minio_key: null,
-                  created_at: doc.created_at,
-                }
-              : doc
-          )
-        );
       } catch (error: unknown) {
         toast.error(
           `Failed to ingest ${file.name}: ${getErrorMessage(error, "Unknown Error")}`
         );
-        setDocuments((prev) =>
-          prev.map((doc) =>
-            doc.id === pendingIds[idx] ? { ...doc, status: "failed" } : doc
-          )
-        );
       }
     }
 
-    await loadDocuments(true);
+    await refetchDocs();
     await loadProducts();
     setIsUploading(false);
   };
@@ -377,7 +326,7 @@ export default function KnowledgeBasePage() {
         toast.success(`Sync complete: ${message}`);
       }
 
-      await loadDocuments(true);
+      refetchDocs();
     } catch (error: unknown) {
       toast.error(`Sync failed: ${getErrorMessage(error)}`);
     } finally {
@@ -392,7 +341,7 @@ export default function KnowledgeBasePage() {
       await deleteKnowledgeDocument(doc.id);
       setPendingDelete(null);
       toast.success(`Deleted "${doc.filename}" and its vector chunks`);
-      await loadDocuments(true);
+      refetchDocs();
     } catch (error: unknown) {
       toast.error(
         `Failed to delete ${doc.filename}: ${getErrorMessage(error)}`
@@ -415,7 +364,7 @@ export default function KnowledgeBasePage() {
       } else {
         toast.success(`Deleted ${result.deleted} documents successfully`);
       }
-      await loadDocuments(true);
+      refetchDocs();
     } catch (error: unknown) {
       toast.error(`Bulk delete failed: ${getErrorMessage(error)}`);
     } finally {
@@ -674,11 +623,13 @@ export default function KnowledgeBasePage() {
         ) : null}
 
         {isLoadingDocs ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/20 py-12 text-center">
-            <RefreshCw className="mb-3 size-6 text-muted-foreground/40 animate-spin" />
-            <p className="text-sm text-muted-foreground">
-              Loading documents...
-            </p>
+          <div className="space-y-3 rounded-xl border p-6">
+            <Skeleton className="h-5 w-1/4" />
+            <div className="space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
           </div>
         ) : totalCount === 0 && !debouncedSearch && !productFilter ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/20 py-12 text-center">

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { UserPill } from "@/components/shared/UserPill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -17,31 +18,21 @@ import {
 } from "@/components/ui/table";
 import { listAdminUsers, setUserAdmin } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
+import { useFetchOnNavigation } from "@/hooks/useFetchOnNavigation";
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<RFIUser[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: users = [], isLoading, refetch } = useFetchOnNavigation(
+    "adminUsers",
+    listAdminUsers
+  );
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        setUsers(await listAdminUsers());
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    load();
-  }, []);
 
   const toggleAdmin = async (user: RFIUser) => {
     try {
       setUpdatingId(user.id);
-      const updated = await setUserAdmin(user.id, !user.is_admin);
-      setUsers((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item))
-      );
+      await setUserAdmin(user.id, !user.is_admin);
       toast.success("User role updated.");
+      refetch();
     } catch {
       toast.error("Failed to update user role.");
     } finally {
@@ -61,7 +52,14 @@ export default function AdminUsersPage() {
       <Card className="border-border/70 shadow-sm">
         <CardContent className="p-4">
           {isLoading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading users...</p>
+            <div className="space-y-3 p-4">
+              <Skeleton className="h-5 w-1/4" />
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </div>
           ) : (
             <Table>
               <TableHeader>

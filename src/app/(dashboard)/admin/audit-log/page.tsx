@@ -8,6 +8,7 @@ import { UserPill } from "@/components/shared/UserPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -16,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useFetchOnNavigation } from "@/hooks/useFetchOnNavigation";
 import {
   listAdminUsers,
   listAuditFilterOptions,
@@ -36,7 +38,6 @@ function normalizeAction(action: string): string {
 }
 
 export default function AdminAuditLogPage() {
-  const [logs, setLogs] = useState<AdminAuditLog[]>([]);
   const [users, setUsers] = useState<RFIUser[]>([]);
   const [options, setOptions] = useState<AuditFilterOptions>({
     actions: [],
@@ -50,7 +51,6 @@ export default function AdminAuditLogPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
   const [detailOpen, setDetailOpen] = useState<number | null>(null);
 
   const closeDetail = useCallback(() => setDetailOpen(null), []);
@@ -70,6 +70,20 @@ export default function AdminAuditLogPage() {
     [action, dateFrom, dateTo, page, q, resourceType, userId]
   );
 
+  const fetchKey = `admin-audit-${JSON.stringify(params)}`;
+  const { data: auditData, isLoading, refetch } = useFetchOnNavigation(
+    fetchKey,
+    () => listAuditLogs(params)
+  );
+
+  const logs = auditData?.items ?? [];
+
+  useEffect(() => {
+    if (auditData?.total !== undefined) {
+      setTotal(auditData.total);
+    }
+  }, [auditData?.total]);
+
   useEffect(() => {
     Promise.all([listAdminUsers(), listAuditFilterOptions()])
       .then(([usersData, optionsData]) => {
@@ -78,25 +92,6 @@ export default function AdminAuditLogPage() {
       })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setIsLoading(true);
-        const data = await listAuditLogs(params);
-        if (cancelled) return;
-        setLogs(data.items);
-        setTotal(data.total);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [params]);
 
   const exportCsv = () => {
     const rows = logs.map((log) => ({
@@ -230,7 +225,14 @@ export default function AdminAuditLogPage() {
           </div>
 
           {isLoading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading audit logs...</p>
+            <div className="space-y-3 rounded-xl border p-6">
+              <Skeleton className="h-5 w-1/4" />
+              <div className="space-y-2">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </div>
           ) : (
             <>
               <Table>

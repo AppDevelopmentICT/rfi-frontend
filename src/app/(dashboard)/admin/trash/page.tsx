@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -35,6 +36,7 @@ import {
   type AdminTrashResponse,
 } from "@/services/admin.service";
 import { useAuth } from "@/contexts/auth-context";
+import { useFetchOnNavigation } from "@/hooks/useFetchOnNavigation";
 
 function getErrorMessage(error: unknown, fallback = "Request failed") {
   if (error instanceof Error) return error.message;
@@ -56,27 +58,23 @@ function itemLabel(item: AdminTrashItem): string {
 
 export default function AdminTrashPage() {
   const { user } = useAuth();
-  const [trash, setTrash] = useState<AdminTrashResponse>({ rfi: [], rfp: [] });
   const [resourceTab, setResourceTab] = useState<"rfi" | "rfp">("rfi");
   const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const loadTrash = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const trashed = await listAdminTrash();
-      setTrash(trashed);
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, "Failed to load trash data"));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const { data: fetchedTrash = { rfi: [], rfp: [] }, isLoading, refetch } = useFetchOnNavigation(
+    "/admin/trash",
+    listAdminTrash
+  );
 
+  const [trash, setTrash] = useState<AdminTrashResponse>({ rfi: [], rfp: [] });
+
+  // Sync local state with fetched data
   useEffect(() => {
-    loadTrash();
-  }, [loadTrash]);
+    if (fetchedTrash.rfi.length || fetchedTrash.rfp.length) {
+      setTrash(fetchedTrash);
+    }
+  }, [fetchedTrash]);
 
   const isAdmin = !!user?.is_admin;
 
@@ -110,7 +108,7 @@ export default function AdminTrashPage() {
     } catch (error: unknown) {
       // Rollback on failure
       toast.error(getErrorMessage(error, "Failed to restore"));
-      loadTrash();
+      refetch();
     } finally {
       setPendingId(null);
     }
@@ -140,7 +138,7 @@ export default function AdminTrashPage() {
     } catch (error: unknown) {
       // Rollback on failure
       toast.error(getErrorMessage(error, "Failed to delete"));
-      loadTrash();
+      refetch();
     } finally {
       setPendingId(null);
     }
@@ -204,7 +202,14 @@ export default function AdminTrashPage() {
             className="max-w-md"
           />
           {isLoading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading...</p>
+            <div className="space-y-3 rounded-xl border p-6">
+              <Skeleton className="h-5 w-1/4" />
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center">
               <p className="font-medium">
