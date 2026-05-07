@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -23,6 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-context";
+import { useStaleData } from "@/hooks/useStaleData";
+import { useDocumentNotifications } from "@/hooks/useDocumentNotifications";
 import {
   listRfiDocuments,
   softDeleteRfiDocument,
@@ -33,6 +36,7 @@ import {
   softDeleteRfpProject,
   type RFPProjectResponse,
 } from "@/services/rfp.service";
+import { ActionButtons } from "@/components/shared/ActionButtons";
 import { cn } from "@/lib/utils";
 
 type Tab = "rfi" | "rfp";
@@ -55,31 +59,24 @@ export default function DocumentsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("rfi");
-  const [rfiDocs, setRfiDocs] = useState<RFIProjectResponse[]>([]);
-  const [rfpDocs, setRfpDocs] = useState<RFPProjectResponse[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const [isLoading, setIsLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
-  const loadAll = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [rfis, rfps] = await Promise.all([
-        listRfiDocuments().catch(() => []),
-        listRfpProjects().catch(() => []),
-      ]);
-      setRfiDocs(rfis);
-      setRfpDocs(rfps);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const { data: rfiDocs = [], isLoading: rfiLoading, refetch: refetchRfi } = useStaleData(
+    "documents-rfi",
+    () => listRfiDocuments().catch(() => [])
+  );
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadAll();
-  }, [loadAll]);
+  const { data: rfpDocs = [], isLoading: rfpLoading, refetch: refetchRfp } = useStaleData(
+    "documents-rfp",
+    () => listRfpProjects().catch(() => [])
+  );
+
+  const isLoading = rfiLoading || rfpLoading;
+
+  useDocumentNotifications("documents-rfi", "documents-rfi");
+  useDocumentNotifications("documents-rfp", "documents-rfp");
 
   const filteredRfi = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -113,7 +110,7 @@ export default function DocumentsPage() {
     try {
       await softDeleteRfiDocument(documentId);
       toast.success(`Moved "${label}" to Trash`);
-      await loadAll();
+      refetchRfi();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Failed to delete RFI"));
     } finally {
@@ -127,7 +124,7 @@ export default function DocumentsPage() {
     try {
       await softDeleteRfpProject(documentId);
       toast.success(`Moved "${label}" to Trash`);
-      await loadAll();
+      refetchRfp();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Failed to delete RFP"));
     } finally {
@@ -153,14 +150,7 @@ export default function DocumentsPage() {
             All generated RFI and RFP projects, owners, and active editing locks.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/rfi/upload">
-            <Button variant="outline">New RFI</Button>
-          </Link>
-          <Link href="/rfp/upload">
-            <Button>New RFP</Button>
-          </Link>
-        </div>
+        <ActionButtons size="default" />
       </div>
 
       <Card className="border-border/70 shadow-sm">
@@ -210,10 +200,13 @@ export default function DocumentsPage() {
               {filters.map((item) => (
                 <Button
                   key={item}
-                  variant={filter === item ? "default" : "outline"}
+                  variant={filter === item ? "secondary" : "outline"}
                   size="sm"
                   onClick={() => setFilter(item)}
-                  className="capitalize"
+                  className={cn(
+                    "capitalize",
+                    filter === item && "bg-foreground/10 text-foreground font-semibold hover:bg-foreground/15",
+                  )}
                 >
                   {item}
                 </Button>
@@ -222,7 +215,14 @@ export default function DocumentsPage() {
           </div>
 
           {isLoading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading...</p>
+            <div className="space-y-3 rounded-xl border p-6">
+              <Skeleton className="h-5 w-1/4" />
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </div>
           ) : tab === "rfi" ? (
             filteredRfi.length === 0 ? (
               <div className="rounded-xl border border-dashed p-8 text-center">
@@ -293,7 +293,7 @@ export default function DocumentsPage() {
                                 size="icon-sm"
                                 onClick={() => handleDeleteRfi(doc.documentId, doc.fileName)}
                                 disabled={deleting}
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                               >
                                 {deleting ? (
                                   <Loader2 className="size-4 animate-spin" />
@@ -390,7 +390,7 @@ export default function DocumentsPage() {
                               size="icon-sm"
                               onClick={() => handleDeleteRfp(doc.documentId, label)}
                               disabled={deleting}
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             >
                               {deleting ? (
                                 <Loader2 className="size-4 animate-spin" />

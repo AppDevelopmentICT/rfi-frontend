@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { FileClock, Lock, Sparkles } from "lucide-react";
+import { FileClock, Lock, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { RFIEditor } from "@/components/editor/RFIEditor";
@@ -178,11 +178,11 @@ export default function RfiDetailPage() {
                     <span className="absolute left-2 top-2 h-full w-px bg-border" />
                     <span className="absolute left-0 top-1 flex size-4 items-center justify-center rounded-full bg-background ring-4 ring-background">
                       {isLock ? (
-                        <Lock className="size-4 text-amber-600" />
+                        <Lock className="size-3 text-muted-foreground" />
                       ) : isGenerate ? (
-                        <Sparkles className="size-4 text-purple-600" />
+                        <Zap className="size-3 text-muted-foreground" />
                       ) : (
-                        <FileClock className="size-4 text-primary" />
+                        <FileClock className="size-3 text-muted-foreground" />
                       )}
                     </span>
                     <div className="rounded-lg border bg-card p-3">

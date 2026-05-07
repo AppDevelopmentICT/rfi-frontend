@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Download, X } from "lucide-react";
 
 import { ExactTime } from "@/components/shared/RelativeTime";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { UserPill } from "@/components/shared/UserPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useFetchOnNavigation } from "@/hooks/useFetchOnNavigation";
 import {
   listAdminUsers,
   listAuditFilterOptions,
@@ -26,8 +27,17 @@ import {
 } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
 
+
+function normalizeAction(action: string): string {
+  return action
+    .replace(/^rfi\./, "")
+    .replace(/^admin\./, "")
+    .replace(/\./g, "_")
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .toLowerCase();
+}
+
 export default function AdminAuditLogPage() {
-  const [logs, setLogs] = useState<AdminAuditLog[]>([]);
   const [users, setUsers] = useState<RFIUser[]>([]);
   const [options, setOptions] = useState<AuditFilterOptions>({
     actions: [],
@@ -41,7 +51,9 @@ export default function AdminAuditLogPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [detailOpen, setDetailOpen] = useState<number | null>(null);
+
+  const closeDetail = useCallback(() => setDetailOpen(null), []);
   const pageSize = 25;
 
   const params = useMemo(
@@ -58,6 +70,20 @@ export default function AdminAuditLogPage() {
     [action, dateFrom, dateTo, page, q, resourceType, userId]
   );
 
+  const fetchKey = `admin-audit-${JSON.stringify(params)}`;
+  const { data: auditData, isLoading, refetch } = useFetchOnNavigation(
+    fetchKey,
+    () => listAuditLogs(params)
+  );
+
+  const logs = auditData?.items ?? [];
+
+  useEffect(() => {
+    if (auditData?.total !== undefined) {
+      setTotal(auditData.total);
+    }
+  }, [auditData?.total]);
+
   useEffect(() => {
     Promise.all([listAdminUsers(), listAuditFilterOptions()])
       .then(([usersData, optionsData]) => {
@@ -66,25 +92,6 @@ export default function AdminAuditLogPage() {
       })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setIsLoading(true);
-        const data = await listAuditLogs(params);
-        if (cancelled) return;
-        setLogs(data.items);
-        setTotal(data.total);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [params]);
 
   const exportCsv = () => {
     const rows = logs.map((log) => ({
@@ -183,33 +190,54 @@ export default function AdminAuditLogPage() {
                 </option>
               ))}
             </select>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(event) => {
-                setPage(1);
-                setDateFrom(event.target.value);
-              }}
-              title="From date"
-            />
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(event) => {
-                setPage(1);
-                setDateTo(event.target.value);
-              }}
-              title="To date"
-            />
+            <div className="relative">
+              {!dateFrom && (
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  Start Date
+                </span>
+              )}
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(event) => {
+                  setPage(1);
+                  setDateFrom(event.target.value);
+                }}
+                className={`h-8 w-full rounded-lg border bg-background px-3 text-sm text-foreground ${!dateFrom ? "text-transparent" : ""}`}
+              />
+            </div>
+            <div className="relative">
+              {!dateTo && (
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  End Date
+                </span>
+                )}
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(event) => {
+                  setPage(1);
+                  setDateTo(event.target.value);
+                }}
+                className={`h-8 w-full rounded-lg border bg-background px-3 text-sm text-foreground ${!dateTo ? "text-transparent" : ""}`}
+              />
+            </div>
           </div>
 
           {isLoading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading audit logs...</p>
+            <div className="space-y-3 rounded-xl border p-6">
+              <Skeleton className="h-5 w-1/4" />
+              <div className="space-y-2">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </div>
           ) : (
             <>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-[#f9fafb] hover:bg-[#f9fafb]">
                     <TableHead>When</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Action</TableHead>
@@ -228,11 +256,20 @@ export default function AdminAuditLogPage() {
                         <UserPill name={log.user?.name} email={log.user?.email} />
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={log.action.replace("rfi.", "").replace("admin.", "")} />
+                        <span className="inline-flex h-5 items-center rounded-md border border-border/60 bg-background px-2 text-[11px] font-medium text-muted-foreground">
+                          {normalizeAction(log.action)}
+                        </span>
                       </TableCell>
                       <TableCell>{log.resource_type}</TableCell>
-                      <TableCell className="max-w-[280px] truncate font-mono text-xs" title={JSON.stringify(log.details || {})}>
-                        {JSON.stringify(log.details || {})}
+                      <TableCell className="max-w-[280px]">
+                        <button
+                          type="button"
+                          onClick={() => setDetailOpen(log.id)}
+                          title="Click to view full JSON details"
+                          className="block max-w-[260px] cursor-pointer truncate rounded bg-muted/50 px-1.5 py-0.5 text-left font-mono text-[11px] leading-relaxed text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          {JSON.stringify(log.details || {})}
+                        </button>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{log.ip_address || "-"}</TableCell>
                     </TableRow>
@@ -266,6 +303,36 @@ export default function AdminAuditLogPage() {
           )}
         </CardContent>
       </Card>
+
+      {detailOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={closeDetail}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-lg border bg-background p-0 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <span className="text-sm font-semibold">Detail Data</span>
+              <button
+                type="button"
+                onClick={closeDetail}
+                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs leading-relaxed text-foreground">
+              {JSON.stringify(
+                logs.find((l) => l.id === detailOpen)?.details ?? {},
+                null,
+                2
+              )}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
