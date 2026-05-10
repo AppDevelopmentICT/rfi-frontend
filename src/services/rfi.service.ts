@@ -208,6 +208,24 @@ export async function exportRfiExcel(documentId: string): Promise<void> {
   }
 }
 
+export interface RegenerateRowResult {
+  sheet: string;
+  rowIdx: number;
+  updatedRow: Record<string, string>;
+}
+
+export async function regenerateRfiRow(
+  documentId: string,
+  sheet: string,
+  rowIdx: number
+): Promise<RegenerateRowResult> {
+  const { data } = await apiClient.post<RegenerateRowResult>(
+    `/v1/rfi/${documentId}/regenerate-row`,
+    { sheet, rowIdx }
+  );
+  return data;
+}
+
 // ---------------------------------------------------------------------------
 // Helper — trigger browser download from a blob
 // ---------------------------------------------------------------------------

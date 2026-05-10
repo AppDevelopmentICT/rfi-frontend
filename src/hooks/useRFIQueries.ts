@@ -4,8 +4,10 @@ import {
   uploadAndReadExcel,
   autoFillExcel,
   updateRfiCell,
+  regenerateRfiRow,
   type AutoFillOptions,
   type AutoFillResult,
+  type RegenerateRowResult,
   type UploadRfiResponse,
 } from "@/services/rfi.service";
 
@@ -57,6 +59,22 @@ export function useUpdateCellMutation() {
       updateRfiCell(documentId, sheet, rowIdx, column, value),
     onError: () => {
       toast.error("Failed to update cell.");
+    },
+  });
+}
+
+interface RegenerateRowParams {
+  documentId: string;
+  sheet: string;
+  rowIdx: number;
+}
+
+export function useRegenerateRfiRowMutation() {
+  return useMutation<RegenerateRowResult, Error, RegenerateRowParams>({
+    mutationFn: ({ documentId, sheet, rowIdx }) =>
+      regenerateRfiRow(documentId, sheet, rowIdx),
+    onError: () => {
+      toast.error("Failed to regenerate answer.");
     },
   });
 }

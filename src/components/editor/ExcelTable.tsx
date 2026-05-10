@@ -1,19 +1,28 @@
 "use client";
 
+import { RefreshCw } from "lucide-react";
 import { useExcelStore } from "@/store/useExcelStore";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ExcelTableProps {
   isGenerated?: boolean;
-  documentId?: string;
   readOnly?: boolean;
+  regeneratingRows?: Set<number>;
   onDirtyChange?: (dirty: boolean) => void;
+  onRegenerateRow?: (sheet: string, rowIdx: number) => void;
 }
 
 export function ExcelTable({
   isGenerated = false,
   readOnly = false,
+  regeneratingRows,
   onDirtyChange,
+  onRegenerateRow,
 }: ExcelTableProps) {
   const excelData = useExcelStore((s) => s.excelData);
   const activeSheet = useExcelStore((s) => s.activeSheet);
@@ -77,53 +86,87 @@ export function ExcelTable({
                   {header}
                 </th>
               ))}
+              {isGenerated && onRegenerateRow && !readOnly && (
+                <th className="w-10 px-2 py-3.5">
+                  <span className="sr-only">Actions</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {data.map((row, rowIdx) => (
-              <tr
-                key={rowIdx}
-                className={cn(
-                  "border-b border-border/40 transition-colors last:border-0",
-                  rowIdx % 2 === 1 && "bg-muted/20"
-                )}
-              >
-                {headers.map((header, colIdx) => {
-                  const value = row[header];
-                  const isEmpty =
-                    value === null ||
-                    value === undefined ||
-                    String(value).trim() === "";
+            {data.map((row, rowIdx) => {
+              const isRowRegenerating = regeneratingRows?.has(rowIdx) ?? false;
+              return (
+                <tr
+                  key={rowIdx}
+                  className={cn(
+                    "group border-b border-border/40 transition-colors last:border-0",
+                    rowIdx % 2 === 1 && "bg-muted/20"
+                  )}
+                >
+                  {headers.map((header, colIdx) => {
+                    const value = row[header];
+                    const isEmpty =
+                      value === null ||
+                      value === undefined ||
+                      String(value).trim() === "";
 
-                  return (
-                    <td
-                      key={colIdx}
-                      className={cn(
-                        "max-w-xs px-4 py-4 align-top leading-relaxed",
-                        isEmpty
-                          ? "text-muted-foreground/60 italic"
-                          : "text-foreground",
-                        isGenerated && !readOnly ? "hover:bg-muted/50 cursor-text" : "truncate"
-                      )}
-                      contentEditable={isGenerated && !readOnly}
-                      suppressContentEditableWarning={true}
-                      onBlur={(e) => {
-                        if (!isGenerated || readOnly) return;
-                        const newValue = e.target.innerText;
-                        if (newValue !== String(value || "")) {
-                          updateLocalCell(activeSheet, rowIdx, header, newValue);
-                          onDirtyChange?.(true);
-                        }
-                      }}
-                      title={isEmpty ? "(empty)" : String(value)}
-                    >
-                      {isEmpty && !isGenerated ? "—" : String(value || "")}
+                    return (
+                      <td
+                        key={colIdx}
+                        className={cn(
+                          "max-w-xs px-4 py-4 align-top leading-relaxed",
+                          isEmpty
+                            ? "text-muted-foreground/60 italic"
+                            : "text-foreground",
+                          isGenerated && !readOnly ? "hover:bg-muted/50 cursor-text" : "truncate"
+                        )}
+                        contentEditable={isGenerated && !readOnly}
+                        suppressContentEditableWarning={true}
+                        onBlur={(e) => {
+                          if (!isGenerated || readOnly) return;
+                          const newValue = e.target.innerText;
+                          if (newValue !== String(value || "")) {
+                            updateLocalCell(activeSheet, rowIdx, header, newValue);
+                            onDirtyChange?.(true);
+                          }
+                        }}
+                        title={isEmpty ? "(empty)" : String(value)}
+                      >
+                        {isEmpty && !isGenerated ? "—" : String(value || "")}
+                      </td>
+                    );
+                  })}
+                  {isGenerated && onRegenerateRow && !readOnly && (
+                    <td className="w-10 px-2 py-4 align-middle">
+                      <Tooltip>
+                        <TooltipTrigger
+                          className={cn(
+                            "inline-flex size-7 items-center justify-center rounded-md transition-all",
+                            "text-muted-foreground/40 opacity-0 group-hover:opacity-100",
+                            "hover:bg-muted/60 hover:text-muted-foreground",
+                            isRowRegenerating && "opacity-100"
+                          )}
+                          onClick={() => onRegenerateRow(activeSheet, rowIdx)}
+                          disabled={isRowRegenerating}
+                        >
+                          <RefreshCw
+                            className={cn(
+                              "size-3.5",
+                              isRowRegenerating && "animate-spin"
+                            )}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="left" sideOffset={4}>
+                          {isRowRegenerating ? "Regenerating..." : "Regenerate answer"}
+                        </TooltipContent>
+                      </Tooltip>
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
+                  )}
+                 </tr>
+               );
+             })}
+           </tbody>
         </table>
       </div>
 

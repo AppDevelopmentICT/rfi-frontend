@@ -7,7 +7,7 @@ import { useRFIStore } from "@/store/useRFIStore";
 import { useExcelStore } from "@/store/useExcelStore";
 import { EditorHeader } from "@/components/editor/EditorHeader";
 import { ExcelTable } from "@/components/editor/ExcelTable";
-import { useAutoFillMutation } from "@/hooks/useRFIQueries";
+import { useAutoFillMutation, useRegenerateRfiRowMutation } from "@/hooks/useRFIQueries";
 import { exportRfiExcel } from "@/services/rfi.service";
 import { useState } from "react";
 import type { RFIProjectResponse } from "@/services/rfi.service";
@@ -50,9 +50,11 @@ export function RFIEditor({
   const activeJob = activeJobs.slice().reverse().find(j => j.filename.startsWith(fileName.replace(/\.[^.]+$/, "")));
   
   const { mutate, isPending } = useAutoFillMutation();
+  const regenerateRowMutation = useRegenerateRfiRowMutation();
   const [isExporting, setIsExporting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [regeneratingRows, setRegeneratingRows] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!isDirty) return;
@@ -129,6 +131,78 @@ export function RFIEditor({
     }
   }, [activeJob?.id, document?.documentId]);
 
+  const handleRegenerateRow = useCallback(
+    (sheet: string, rowIdx: number) => {
+      const docId = document?.documentId || activeJob?.id;
+      if (!docId) {
+        toast.error("Document not ready for regeneration.");
+        return;
+      }
+
+      setRegeneratingRows((prev) => new Set(prev).add(rowIdx));
+
+      regenerateRowMutation.mutate(
+        { documentId: docId, sheet, rowIdx },
+        {
+          onSuccess: (result) => {
+            const excelStore = useExcelStore.getState();
+            for (const [col, val] of Object.entries(result.updatedRow)) {
+              excelStore.updateCell(sheet, rowIdx, col, String(val));
+            }
+            setRegeneratingRows((prev) => {
+              const next = new Set(prev);
+              next.delete(rowIdx);
+              return next;
+            });
+            setIsDirty(true);
+            toast.success("Answer regenerated.");
+          },
+          onError: () => {
+            setRegeneratingRows((prev) => {
+              const next = new Set(prev);
+              next.delete(rowIdx);
+              return next;
+            });
+          },
+        }
+      );
+    },
+    [document?.documentId, activeJob?.id, regenerateRowMutation]
+  );
+
+  const handleRegenerateAll = useCallback(async () => {
+    let uploadFile = file;
+
+    if (!uploadFile && fileBase64 && fileName) {
+      try {
+        const res = await fetch(fileBase64);
+        const blob = await res.blob();
+        uploadFile = new File([blob], fileName, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      } catch {
+        console.error("Failed to reconstruct file from base64");
+      }
+    }
+
+    if (!uploadFile) {
+      toast.error("Original workbook is unavailable. Go back to upload and open the file again.");
+      return;
+    }
+
+    mutate(
+      { file: uploadFile },
+      {
+        onSuccess: (data) => {
+          if (data.excelData) {
+            setExcelData(data.excelData);
+          }
+          if (data.documentId) {
+            router.push(`/rfi/${data.documentId}`);
+          }
+        },
+      }
+    );
+  }, [file, fileBase64, fileName, mutate, router, setExcelData]);
+
   const displayTitle = document?.fileName || activeJob?.filename || fileName || rfiId;
   const isGenerating = isPending || activeJob?.status === "generating" || document?.status === "generating";
   const isCompleted = activeJob?.status === "completed" || document?.status === "completed";
@@ -148,6 +222,7 @@ export function RFIEditor({
         onCancel={onCancelEdit}
         onForceUnlock={canForceUnlock ? onForceUnlock : undefined}
         onExport={handleExport}
+        onRegenerateAll={isCompleted ? handleRegenerateAll : undefined}
         showGenerate={shouldShowGenerate}
         isEditing={isEditing}
         isDirty={isDirty}
@@ -215,9 +290,10 @@ export function RFIEditor({
           
           <ExcelTable
             isGenerated={isCompleted}
-            documentId={document?.documentId || activeJob?.id}
             readOnly={readOnly}
+            regeneratingRows={regeneratingRows}
             onDirtyChange={setIsDirty}
+            onRegenerateRow={handleRegenerateRow}
           />
         </div>
       </div>

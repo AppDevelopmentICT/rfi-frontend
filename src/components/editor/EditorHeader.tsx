@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Download, Loader2, Save, Pencil, X } from "lucide-react";
+import { Sparkles, Download, Loader2, Save, Pencil, X, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -18,6 +18,7 @@ interface EditorHeaderProps {
   onCancel?: () => void;
   onForceUnlock?: () => void;
   onExport?: () => void;
+  onRegenerateAll?: () => void;
   saveLabel?: string;
   showGenerate?: boolean;
   isEditing?: boolean;
@@ -37,6 +38,7 @@ export function EditorHeader({
   onCancel,
   onForceUnlock,
   onExport,
+  onRegenerateAll,
   saveLabel = "Save Changes",
   showGenerate = true,
   isEditing = false,
@@ -79,6 +81,22 @@ export function EditorHeader({
           <Button variant="outline" size="sm" onClick={onExport} disabled={isGeneratingAll}>
             <Download className="size-4" />
             Export Excel
+          </Button>
+        )}
+        {onRegenerateAll && !showGenerate && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRegenerateAll}
+            disabled={isGeneratingAll}
+            className="gap-1.5 text-muted-foreground"
+          >
+            {isGeneratingAll ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            {isGeneratingAll ? "Regenerating..." : "Regenerate All"}
           </Button>
         )}
         {showGenerate && (
