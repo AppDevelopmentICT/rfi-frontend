@@ -108,9 +108,11 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
-  const [streamingChunks, setStreamingChunks] = useState("");
+  const streamingContainerRef = useRef<HTMLDivElement>(null);
+  const editorScrollPosRef = useRef<number>(0);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [isTimelineAccordionOpen, setIsTimelineAccordionOpen] = useState(false);
@@ -207,7 +209,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [project?.chat_messages, streamingChunks]);
+  }, [project?.chat_messages]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -255,21 +257,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
     onStart: () => {
       streamingActiveRef.current = true;
       streamHasChunksRef.current = false;
-      setStreamingChunks("");
       setWarningMessage(null);
       setPendingMessage(null);
-    },
-    onChunk: (chunk) => {
-      setStreamingChunks((prev) => {
-        const next = prev + chunk;
-        if (editor) {
-          streamHasChunksRef.current = true;
-          editorHydrateRef.current = true;
-          editor.commands.setContent(markdownToHtml(next));
-          editorHydrateRef.current = false;
-        }
-        return next;
-      });
     },
     onWarning: (message) => {
       setWarningMessage(message);
@@ -281,13 +270,26 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       backgroundFallbackStartedRef.current = false;
       setPendingMessage(null);
       setIsAdjusting(false);
+      setIsEditing(false);
+
+      if (streamingContainerRef.current) {
+        editorScrollPosRef.current = streamingContainerRef.current.scrollTop;
+      }
+
       const html = markdownToHtml(full);
       if (editor) {
         editorHydrateRef.current = true;
         editor.commands.setContent(html);
         editorHydrateRef.current = false;
       }
-      setStreamingChunks("");
+
+      requestAnimationFrame(() => {
+        const editorEl = document.querySelector<HTMLDivElement>(".tiptap")?.parentElement;
+        if (editorEl) {
+          editorEl.scrollTop = editorScrollPosRef.current;
+        }
+      });
+
       isDirtyRef.current = false;
       setIsDirty(false);
       const current = projectRef.current;
@@ -304,7 +306,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         });
         projectRef.current = saved;
         setProject(saved);
-        setIsEditing(false);
         toast.success("Response saved to project");
       } catch (error: unknown) {
         toast.error(getErrorMessage(error, "Generated content could not be saved"));
@@ -316,21 +317,47 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       backgroundFallbackStartedRef.current = false;
       setPendingMessage(null);
       setIsAdjusting(false);
-      setStreamingChunks("");
       setWarningMessage(null);
       toast.error(message);
     },
-    onIncomplete: (partialContent, reason) => {
+    onIncomplete: (_partialContent, _reason) => {
       streamingActiveRef.current = false;
       streamHasChunksRef.current = false;
       setPendingMessage(null);
       setIsAdjusting(false);
-      setStreamingChunks("");
       setWarningMessage(null);
       toast.error("AI generation interrupted. Trying background fallback...");
       queueBackgroundFallback("connection lost");
     },
   });
+
+  const streamingHtml = useMemo(
+    () => (stream.streamingBuffer ? markdownToHtml(stream.streamingBuffer) : ""),
+    [stream.streamingBuffer],
+  );
+
+  useEffect(() => {
+    if (stream.isStreaming) {
+      const el = streamingContainerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+  }, [streamingHtml, stream.isStreaming]);
+
+  useEffect(() => {
+    if (!stream.isStreaming && streamingActiveRef.current) {
+      streamingActiveRef.current = false;
+      const el = streamingContainerRef.current;
+      if (el) editorScrollPosRef.current = el.scrollTop;
+      if (editor) {
+        requestAnimationFrame(() => {
+          const editorEl = document.querySelector(".tiptap")?.parentElement;
+          if (editorEl && editorScrollPosRef.current > 0) {
+            editorEl.scrollTop = Math.min(editorScrollPosRef.current, editorEl.scrollHeight);
+          }
+        });
+      }
+    }
+  }, [stream.isStreaming, editor]);
 
   const isBusy = stream.isStreaming || isSaving;
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -353,17 +380,25 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
     return locked;
   }, []);
 
-  const handleEdit = async () => {
-    try {
-      await ensureLock();
-      toast.success("You can now edit this RFP");
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, "Could not lock this RFP"));
-    }
+  const handleEdit = () => {
+    const prevEditable = editor?.isEditable ?? true;
+    setIsEditing(true);
+    editor?.setEditable(true);
+
+    ensureLock()
+      .then(() => {
+        toast.success("You can now edit this RFP");
+      })
+      .catch((error: unknown) => {
+        setIsEditing(false);
+        editor?.setEditable(prevEditable);
+        toast.error(getErrorMessage(error, "Could not lock this RFP"));
+      });
   };
 
   const handleCancel = async () => {
     if (!project) return;
+    setIsCancelling(true);
     try {
       const released = await releaseRfpLock(project.documentId);
       projectRef.current = released;
@@ -378,6 +413,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       }
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Could not release lock"));
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -423,41 +460,45 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
     toast.success("Response copied");
   };
 
-  const handlePrompt = async () => {
+  const handlePrompt = () => {
     const userPrompt = prompt.trim();
     if (!project || !userPrompt || isBusy) return;
+
     setPendingMessage(userPrompt);
     setPrompt("");
-    try {
-      const locked = await ensureLock();
-      const afterUser = await appendRfpChat(locked.documentId, {
-        role: "user",
-        content: userPrompt,
-      });
-      setPendingMessage(null);
-      projectRef.current = afterUser;
-      setProject(afterUser);
-      const currentContent = editor?.getText().trim() || "";
-      if (currentContent) {
-        lastGenerationRef.current = {
-          adjust: true,
-          content: currentContent,
-          additionalContext: userPrompt,
-        };
-        backgroundFallbackStartedRef.current = false;
-        setIsAdjusting(true);
-        stream.adjust(locked.product, currentContent, userPrompt);
-      } else {
-        lastGenerationRef.current = { adjust: false };
-        backgroundFallbackStartedRef.current = false;
-        setIsAdjusting(false);
-        stream.generate(locked.product);
-      }
-    } catch (error: unknown) {
-      setPendingMessage(null);
-      setPrompt(userPrompt);
-      toast.error(getErrorMessage(error, "Could not send prompt"));
+
+    const currentContent = editor?.getText().trim() || "";
+    const product = (projectRef.current ?? project).product;
+
+    if (currentContent) {
+      lastGenerationRef.current = {
+        adjust: true,
+        content: currentContent,
+        additionalContext: userPrompt,
+      };
+      backgroundFallbackStartedRef.current = false;
+      setIsAdjusting(true);
+      stream.adjust(product, currentContent, userPrompt);
+    } else {
+      lastGenerationRef.current = { adjust: false };
+      backgroundFallbackStartedRef.current = false;
+      setIsAdjusting(false);
+      stream.generate(product);
     }
+
+    (async () => {
+      try {
+        const locked = await ensureLock();
+        const afterUser = await appendRfpChat(locked.documentId, {
+          role: "user",
+          content: userPrompt,
+        });
+        projectRef.current = afterUser;
+        setProject(afterUser);
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, "Could not save chat message"));
+      }
+    })();
   };
 
   const startInitialGeneration = useCallback(async () => {
@@ -618,9 +659,9 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 </Button>
               ) : (
                 <>
-                  <Button variant="outline" size="sm" onClick={handleCancel} disabled={isBusy}>
-                    <X className="size-4" />
-                    Cancel
+                  <Button variant="outline" size="sm" onClick={handleCancel} disabled={isBusy || isCancelling}>
+                    {isCancelling ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+                    {isCancelling ? "Cancelling…" : "Cancel"}
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleSave} disabled={isBusy || !isDirty}>
                     {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
@@ -688,13 +729,21 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 </div>
               </div>
             )}
-            {isEditing && (
+            {isEditing && !stream.isStreaming && (
               <div className="border-b bg-muted/40 px-5 py-2">
                 <TipTapToolbar editor={editor} />
               </div>
             )}
             <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-              <EditorContent editor={editor} />
+              {stream.isStreaming ? (
+                <div
+                  ref={streamingContainerRef}
+                  className="prose prose-neutral max-w-none dark:prose-invert prose-headings:font-semibold prose-p:leading-relaxed prose-img:rounded-lg prose-img:border prose-img:border-border"
+                  dangerouslySetInnerHTML={{ __html: streamingHtml }}
+                />
+              ) : (
+                <EditorContent editor={editor} />
+              )}
             </div>
             {isEditing && editor && (
               <div className="border-t px-5 py-2">

@@ -43,28 +43,43 @@ export default function UploadRfpPage() {
   const setProductInfo = useRFPStore((s) => s.setProductInfo);
   const resetTechnical = useRFPStore((s) => s.resetTechnical);
 
-  const handleProcess = async () => {
-    if (!product.trim()) return;
+  const handleProcess = () => {
+    if (!product.trim() || isSubmitting) return;
     setIsSubmitting(true);
-    try {
-      resetTechnical();
-      const productName = product.trim();
-      const trimmedProjectName = projectName.trim();
-      const trimmedProjectDescription = projectDescription.trim();
-      setProductInfo(productName, trimmedProjectName, trimmedProjectDescription);
-      const project = await createOrGetRfpProject({
-        product: productName,
-        project_name: trimmedProjectName || undefined,
-        project_description: trimmedProjectDescription || undefined,
+    const productName = product.trim();
+    const trimmedProjectName = projectName.trim();
+    const trimmedProjectDescription = projectDescription.trim();
+    resetTechnical();
+    setProductInfo(productName, trimmedProjectName, trimmedProjectDescription);
+    createOrGetRfpProject({
+      product: productName,
+      project_name: trimmedProjectName || undefined,
+      project_description: trimmedProjectDescription || undefined,
+    })
+      .then((project) => {
+        const key = encodeURIComponent(project.slug || String(project.id));
+        router.push(project.created ? `/rfp/${key}?generate=1` : `/rfp/${key}`);
+      })
+      .catch((error: unknown) => {
+        toast.error(getErrorMessage(error));
+        setIsSubmitting(false);
       });
-      const key = encodeURIComponent(project.slug || String(project.id));
-      router.push(project.created ? `/rfp/${key}?generate=1` : `/rfp/${key}`);
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
   };
+
+  if (isSubmitting) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 animate-in fade-in duration-300">
+        <div className="relative flex items-center justify-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <Package className="absolute h-5 w-5 text-primary/60" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-lg font-medium">Preparing your project…</p>
+          <p className="text-sm text-muted-foreground">Setting up workspace and redirecting</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center p-6">
@@ -122,11 +137,11 @@ export default function UploadRfpPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!product.trim() || isSubmitting}
+            disabled={!product.trim()}
             onClick={handleProcess}
           >
-            {isSubmitting ? <Loader2 className="animate-spin" /> : <Package />}
-            {isSubmitting ? "Preparing Project..." : "Start Technical Proposal"}
+            <Package />
+            Start Technical Proposal
           </Button>
         </CardContent>
 

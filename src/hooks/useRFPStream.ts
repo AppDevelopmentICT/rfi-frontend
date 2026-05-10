@@ -39,17 +39,42 @@ function resolveWsBase(): string {
 
 export function useRFPStream(options?: UseRFPStreamOptions) {
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingBuffer, setStreamingBuffer] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
   const fullBufferRef = useRef<string>("");
   const settledRef = useRef(false);
   const intentionalCloseRef = useRef(false);
+  const rafRef = useRef<number>(0);
+  const pendingChunkRef = useRef<string>("");
 
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
 
+  const flushBuffer = useCallback(() => {
+    const pending = pendingChunkRef.current;
+    if (!pending) return;
+    pendingChunkRef.current = "";
+    fullBufferRef.current += pending;
+    setStreamingBuffer(fullBufferRef.current);
+    optionsRef.current?.onChunk?.(pending);
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      flushBuffer();
+    });
+  }, [flushBuffer]);
+
   const cleanup = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    pendingChunkRef.current = "";
     if (wsRef.current) {
       try {
         intentionalCloseRef.current = true;
@@ -60,6 +85,8 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
       wsRef.current = null;
     }
     setIsStreaming(false);
+    setStreamingBuffer("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cancel = useCallback(() => {
@@ -76,9 +103,11 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
       cleanup();
 
       fullBufferRef.current = "";
+      pendingChunkRef.current = "";
       settledRef.current = false;
       intentionalCloseRef.current = false;
       setIsStreaming(true);
+      setStreamingBuffer("");
       optionsRef.current?.onStart?.();
 
       const base = resolveWsBase();
@@ -107,13 +136,21 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
         switch (msg.type) {
           case "chunk":
             if (typeof msg.content === "string") {
-              fullBufferRef.current += msg.content;
-              optionsRef.current?.onChunk?.(msg.content);
+              pendingChunkRef.current += msg.content;
+              scheduleFlush();
             }
             break;
           case "complete": {
+            if (rafRef.current) {
+              cancelAnimationFrame(rafRef.current);
+              rafRef.current = 0;
+            }
+            if (pendingChunkRef.current) {
+              flushBuffer();
+            }
             settledRef.current = true;
             const full = msg.fullContent ?? fullBufferRef.current;
+            setStreamingBuffer(full);
             optionsRef.current?.onComplete?.(full);
             try {
               intentionalCloseRef.current = true;
@@ -139,7 +176,6 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
             break;
           case "info":
           default:
-            // Informational frames; ignore
             break;
         }
       });
@@ -155,6 +191,13 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
 
       ws.addEventListener("close", () => {
         if (!settledRef.current && !intentionalCloseRef.current) {
+          if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = 0;
+          }
+          if (pendingChunkRef.current) {
+            flushBuffer();
+          }
           optionsRef.current?.onIncomplete?.(
             fullBufferRef.current,
             "WebSocket closed before complete",
@@ -162,9 +205,10 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
         }
         wsRef.current = null;
         setIsStreaming(false);
+        setStreamingBuffer("");
       });
     },
-    [cleanup],
+    [cleanup, flushBuffer, scheduleFlush],
   );
 
   const generate = useCallback(
@@ -196,5 +240,5 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
 
   useEffect(() => () => cleanup(), [cleanup]);
 
-  return { isStreaming, generate, adjust, cancel };
+  return { isStreaming, streamingBuffer, generate, adjust, cancel };
 }
