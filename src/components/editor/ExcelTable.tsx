@@ -36,7 +36,9 @@ export function ExcelTable({
 
   if (!currentSheet) return null;
 
-  const { headers, data } = currentSheet;
+  const { headers = [], data = [] } = currentSheet ?? {};
+
+  if (!headers.length) return null;
 
   return (
     <div className="flex flex-col gap-4">

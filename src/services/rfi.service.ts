@@ -217,11 +217,12 @@ export interface RegenerateRowResult {
 export async function regenerateRfiRow(
   documentId: string,
   sheet: string,
-  rowIdx: number
+  rowIdx: number,
+  currentRow?: Record<string, string>
 ): Promise<RegenerateRowResult> {
   const { data } = await apiClient.post<RegenerateRowResult>(
     `/v1/rfi/${documentId}/regenerate-row`,
-    { sheet, rowIdx }
+    { sheet, rowIdx, currentRow }
   );
   return data;
 }

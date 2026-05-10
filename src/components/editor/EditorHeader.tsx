@@ -24,6 +24,8 @@ interface EditorHeaderProps {
   isEditing?: boolean;
   isDirty?: boolean;
   isLockedByOther?: boolean;
+  isLocking?: boolean;
+  isUnlocking?: boolean;
 }
 
 export function EditorHeader({
@@ -44,6 +46,8 @@ export function EditorHeader({
   isEditing = false,
   isDirty = false,
   isLockedByOther = false,
+  isLocking = false,
+  isUnlocking = false,
 }: EditorHeaderProps) {
   return (
     <div className="flex shrink-0 items-center justify-between border-b bg-background/95 px-6 py-3 backdrop-blur-sm">
@@ -60,15 +64,15 @@ export function EditorHeader({
           </Button>
         )}
         {!isEditing && onEdit && !isLockedByOther && (
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Pencil className="size-4" />
-            Edit
+          <Button variant="outline" size="sm" onClick={onEdit} disabled={isLocking}>
+            {isLocking ? <Loader2 className="size-4 animate-spin" /> : <Pencil className="size-4" />}
+            {isLocking ? "Locking..." : "Edit"}
           </Button>
         )}
         {isEditing && onCancel && (
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            <X className="size-4" />
-            Cancel
+          <Button variant="outline" size="sm" onClick={onCancel} disabled={isUnlocking}>
+            {isUnlocking ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+            {isUnlocking ? "Cancelling..." : "Cancel"}
           </Button>
         )}
         {isEditing && onSave && (

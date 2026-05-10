@@ -20,6 +20,8 @@ interface RFIEditorProps {
   isEditing?: boolean;
   isLockedByOther?: boolean;
   canForceUnlock?: boolean;
+  isLocking?: boolean;
+  isUnlocking?: boolean;
   onBeginEdit?: () => Promise<void> | void;
   onSaveChanges?: () => Promise<void> | void;
   onCancelEdit?: () => Promise<void> | void;
@@ -34,6 +36,8 @@ export function RFIEditor({
   isEditing = false,
   isLockedByOther = false,
   canForceUnlock = false,
+  isLocking = false,
+  isUnlocking = false,
   onBeginEdit,
   onSaveChanges,
   onCancelEdit,
@@ -139,10 +143,15 @@ export function RFIEditor({
         return;
       }
 
+      // Read the current row data from ExcelStore so regenerate uses the latest edited values
+      const excelState = useExcelStore.getState();
+      const sheetData = excelState.excelData?.[sheet];
+      const currentRow = sheetData?.data?.[rowIdx] as Record<string, string> | undefined;
+
       setRegeneratingRows((prev) => new Set(prev).add(rowIdx));
 
       regenerateRowMutation.mutate(
-        { documentId: docId, sheet, rowIdx },
+        { documentId: docId, sheet, rowIdx, currentRow },
         {
           onSuccess: (result) => {
             const excelStore = useExcelStore.getState();
@@ -204,8 +213,8 @@ export function RFIEditor({
   }, [file, fileBase64, fileName, mutate, router, setExcelData]);
 
   const displayTitle = document?.fileName || activeJob?.filename || fileName || rfiId;
-  const isGenerating = isPending || activeJob?.status === "generating" || document?.status === "generating";
   const isCompleted = activeJob?.status === "completed" || document?.status === "completed";
+  const isGenerating = !isCompleted && (isPending || activeJob?.status === "generating" || document?.status === "generating");
   const shouldShowGenerate = !document;
 
   return (
@@ -213,9 +222,9 @@ export function RFIEditor({
       <EditorHeader
         title={`RFI Project - ${displayTitle}`}
         questionCount={0}
-        isGeneratingAll={isGenerating || isExporting || isSaving}
+        isGeneratingAll={isGenerating || isExporting || isSaving || isLocking || isUnlocking}
         generateAllLabel="Auto-fill Excel"
-        generatingLabel={isSaving ? "Saving..." : isExporting ? "Exporting..." : "Filling workbook..."}
+        generatingLabel={isSaving ? "Saving..." : isExporting ? "Exporting..." : isLocking ? "Acquiring lock..." : isUnlocking ? "Releasing lock..." : "Filling workbook..."}
         onGenerateAll={handleAutoFillExcel}
         onSave={handleSave}
         onEdit={onBeginEdit}
@@ -227,6 +236,8 @@ export function RFIEditor({
         isEditing={isEditing}
         isDirty={isDirty}
         isLockedByOther={isLockedByOther}
+        isLocking={isLocking}
+        isUnlocking={isUnlocking}
       />
 
       <div className="flex-1 overflow-y-auto">

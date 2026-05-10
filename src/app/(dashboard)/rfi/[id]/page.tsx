@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { FileClock, Lock, Zap } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,6 +22,8 @@ import {
   type RFITimelineEntry,
 } from "@/services/rfi.service";
 import { useExcelStore } from "@/store/useExcelStore";
+import { useRFIStore } from "@/store/useRFIStore";
+import { useJobPolling } from "@/hooks/usePollingManager";
 
 function errorMessage(error: unknown) {
   if (
@@ -49,6 +52,8 @@ export default function RfiDetailPage() {
   const [document, setDocument] = useState<RFIProjectResponse | null>(null);
   const [timeline, setTimeline] = useState<RFITimelineEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLocking, setIsLocking] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   const loadDocument = useCallback(async () => {
     const data = await getRfiDocument(documentId);
@@ -89,6 +94,38 @@ export default function RfiDetailPage() {
     };
   }, [documentId, setExcelData]);
 
+  // Poll for background generation completion
+  useJobPolling(
+    document?.status === "generating" ? documentId : "",
+    5000,
+    // onComplete
+    (doc) => {
+      const rfiDoc = doc as RFIProjectResponse;
+      setDocument(rfiDoc);
+      if (rfiDoc.excelData) {
+        setExcelData(rfiDoc.excelData);
+      }
+      // Clear the activeJob from Zustand store so isGenerating becomes false
+      const rfiStore = useRFIStore.getState();
+      const matchingJob = rfiStore.activeJobs.find(j => j.id === documentId);
+      if (matchingJob) {
+        rfiStore.updateJob(documentId, "completed");
+      }
+      loadTimeline().catch(() => {});
+      toast.success("Workbook filled successfully!");
+    },
+    // onFailed
+    () => {
+      const rfiStore = useRFIStore.getState();
+      const matchingJob = rfiStore.activeJobs.find(j => j.id === documentId);
+      if (matchingJob) {
+        rfiStore.updateJob(documentId, "failed");
+      }
+      loadDocument().catch(() => {});
+      toast.error("Workbook generation failed.");
+    }
+  );
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (globalThis.document.visibilityState !== "visible") return;
@@ -105,6 +142,7 @@ export default function RfiDetailPage() {
   }, [document]);
 
   const handleBeginEdit = async () => {
+    setIsLocking(true);
     try {
       const locked = await lockRfiDocument(documentId);
       setDocument(locked);
@@ -113,6 +151,8 @@ export default function RfiDetailPage() {
     } catch (e: unknown) {
       toast.error(errorMessage(e) || "This file is locked by another user.");
       await loadDocument();
+    } finally {
+      setIsLocking(false);
     }
   };
 
@@ -124,10 +164,23 @@ export default function RfiDetailPage() {
   };
 
   const handleCancel = async () => {
-    const unlocked = await unlockRfiDocument(documentId);
-    setDocument(unlocked);
-    await loadDocument();
-    await loadTimeline();
+    setIsUnlocking(true);
+    try {
+      await unlockRfiDocument(documentId);
+      // Parallelize refresh calls since they are independent
+      const [docData] = await Promise.all([
+        getRfiDocument(documentId),
+        loadTimeline(),
+      ]);
+      setDocument(docData);
+      if (docData.excelData) {
+        setExcelData(docData.excelData);
+      }
+    } catch {
+      toast.error("Failed to cancel edit.");
+    } finally {
+      setIsUnlocking(false);
+    }
   };
 
   if (isLoading) {
@@ -149,6 +202,8 @@ export default function RfiDetailPage() {
           isLockedByOther={!!document?.is_locked_by_other}
           lockMessage={lockMessage}
           canForceUnlock={!!user?.is_admin && !!document?.is_locked_by_other}
+          isLocking={isLocking}
+          isUnlocking={isUnlocking}
           onBeginEdit={document?.status === "completed" ? handleBeginEdit : undefined}
           onSaveChanges={handleSave}
           onCancelEdit={handleCancel}
