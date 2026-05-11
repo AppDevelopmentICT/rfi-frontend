@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { FileClock, Lock, Zap } from "lucide-react";
 import { toast } from "sonner";
 
@@ -129,11 +128,23 @@ export default function RfiDetailPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (globalThis.document.visibilityState !== "visible") return;
-      loadDocument().catch(() => {});
-      loadTimeline().catch(() => {});
+      // During edit mode, only refresh document metadata (lock status, etc.)
+      // Do NOT overwrite excelData — the user may have unsaved local edits.
+      getRfiDocument(documentId)
+        .then((data) => {
+          setDocument(data);
+          if (!data.is_lock_held_by_me && data.excelData) {
+            setExcelData(data.excelData);
+          }
+        })
+        .catch(() => {});
+      // Only refresh timeline when not editing (it's not useful during editing)
+      if (!document?.is_lock_held_by_me) {
+        loadTimeline().catch(() => {});
+      }
     }, 30000);
     return () => clearInterval(interval);
-  }, [loadDocument, loadTimeline]);
+  }, [documentId, setExcelData, loadTimeline, document?.is_lock_held_by_me]);
 
   const lockMessage = useMemo(() => {
     if (!document?.is_locked_by_other || !document.editing_user) return null;
