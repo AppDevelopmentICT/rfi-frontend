@@ -147,6 +147,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
 
   const projectRef = useRef<RFIPdfProjectResponse | null>(null);
   const editorHydratingRef = useRef(false);
+  const hasHydratedRef = useRef(false);
   /** When true, poller/refetch must not overwrite editor with stale server markdown (streaming draft). */
   const streamingHydrateBlockedRef = useRef(false);
   const editorRef = useRef<Editor | null>(null);
@@ -237,7 +238,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
         }
         const allowHydrate =
           Boolean(editor) &&
-          !isDirtyRef.current &&
+          (!isDirtyRef.current || !hasHydratedRef.current) &&
           !streamingHydrateBlockedRef.current;
         if (allowHydrate && editor) {
           editorHydratingRef.current = true;
@@ -246,6 +247,12 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
             markdownToHtml(nextProject.editor_markdown || "");
           editor.commands.setContent(html, { emitUpdate: false });
           editorHydratingRef.current = false;
+          const wasHydrated = hasHydratedRef.current;
+          hasHydratedRef.current = true;
+          if (!wasHydrated) {
+            isDirtyRef.current = false;
+            setIsDirty(false);
+          }
           lastMarkdownRef.current = nextProject.editor_markdown || "";
           setMarkdownSource(nextProject.editor_markdown || "");
         }
@@ -926,6 +933,33 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                               ? String((entry.details as Record<string, unknown>).filename || actionLabel(entry.action))
                               : actionLabel(entry.action)}
                           </p>
+                          {entry.details && typeof entry.details === "object" && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {Object.entries(entry.details).map(([key, value]) => {
+                                if (key === 'filename') return null;
+                                let formattedKey = key;
+                                let formattedValue = String(value);
+                                if (key === 'markdown_length') {
+                                  formattedKey = 'Content Length';
+                                  formattedValue = `${value} chars`;
+                                } else if (key === 'entity_refs') {
+                                  formattedKey = 'Data Inserted';
+                                  formattedValue = `${value} items`;
+                                } else if (key === 'requirements_count') {
+                                  formattedKey = 'Extracted Requirements';
+                                } else if (key === 'previous_editor') {
+                                  formattedKey = 'Previous Editor';
+                                  formattedValue = typeof value === 'object' && value ? (value as any).name || (value as any).email : String(value);
+                                }
+                                return (
+                                  <Badge key={key} variant="outline" className="text-[10px] font-normal bg-muted/30">
+                                    <span className="text-muted-foreground mr-1">{formattedKey}:</span>
+                                    {formattedValue}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                         <RelativeTime
                           iso={entry.created_at}
