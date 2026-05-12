@@ -331,17 +331,19 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
         {ready && user && (
           <div className="mt-auto border-t bg-sidebar-accent/30 p-4">
             <div className="flex items-center gap-3">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20">
-                {initials}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-semibold text-foreground leading-none">
-                  {user.name || user.email}
-                </p>
-                <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                  {user.email}
-                </p>
-              </div>
+              <Link href="/profile" className="flex items-center gap-3 flex-1 overflow-hidden group" title="View Profile">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary ring-1 ring-primary/20 group-hover:bg-primary/20 transition-colors">
+                  {initials}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <p className="truncate text-sm font-semibold text-foreground leading-none group-hover:underline">
+                    {user.name || user.email}
+                  </p>
+                  <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon-sm"
