@@ -33,17 +33,9 @@ import {
   type AuditFilterOptions,
 } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
+import { formatAuditActionTitle, formatAuditResourceType } from "@/lib/audit-labels";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
-
-function normalizeAction(action: string): string {
-  return action
-    .replace(/^rfi\./, "")
-    .replace(/^admin\./, "")
-    .replace(/\./g, "_")
-    .replace(/([a-z])([A-Z])/g, "$1_$2")
-    .toLowerCase();
-}
 
 export default function AdminAuditLogPage() {
   const [allUsers, setAllUsers] = useState<RFIUser[]>([]);
@@ -115,13 +107,26 @@ export default function AdminAuditLogPage() {
     const rows = logs.map((log) => ({
       created_at: log.created_at,
       user: log.user?.email || "",
-      action: log.action,
-      resource_type: log.resource_type,
+      action: formatAuditActionTitle(log.action),
+      action_key: log.action,
+      resource_type: formatAuditResourceType(log.resource_type),
+      resource_type_key: log.resource_type,
       ip_address: log.ip_address || "",
       details: JSON.stringify(log.details || {}),
     }));
     const csv = [
-      Object.keys(rows[0] || { created_at: "", user: "", action: "", resource_type: "", ip_address: "", details: "" }).join(","),
+      Object.keys(
+        rows[0] || {
+          created_at: "",
+          user: "",
+          action: "",
+          action_key: "",
+          resource_type: "",
+          resource_type_key: "",
+          ip_address: "",
+          details: "",
+        }
+      ).join(","),
       ...rows.map((row) =>
         Object.values(row)
           .map((value) => `"${String(value).replace(/"/g, '""')}"`)
@@ -202,7 +207,7 @@ export default function AdminAuditLogPage() {
               <option value="">All actions</option>
               {options.actions.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {formatAuditActionTitle(item)}
                 </option>
               ))}
             </select>
@@ -214,7 +219,7 @@ export default function AdminAuditLogPage() {
               <option value="">All resources</option>
               {options.resource_types.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {formatAuditResourceType(item)}
                 </option>
               ))}
             </select>
@@ -284,11 +289,21 @@ export default function AdminAuditLogPage() {
                         <UserPill name={log.user?.name} email={log.user?.email} />
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex h-5 items-center rounded-md border border-border/60 bg-background px-2 text-[11px] font-medium text-muted-foreground">
-                          {normalizeAction(log.action)}
+                        <div className="flex min-w-0 max-w-[220px] flex-col gap-0.5">
+                          <span className="truncate text-sm font-semibold leading-tight text-foreground">
+                            {formatAuditActionTitle(log.action)}
+                          </span>
+                          <span className="truncate font-mono text-[11px] text-muted-foreground">
+                            {log.action}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <span className="block truncate font-medium">{formatAuditResourceType(log.resource_type)}</span>
+                        <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                          {log.resource_type}
                         </span>
                       </TableCell>
-                      <TableCell>{log.resource_type}</TableCell>
                       <TableCell className="max-w-[280px]">
                         <button
                           type="button"

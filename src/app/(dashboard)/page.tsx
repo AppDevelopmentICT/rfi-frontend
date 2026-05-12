@@ -43,6 +43,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ActionButtons } from "@/components/shared/ActionButtons";
 import { cn } from "@/lib/utils";
+import { formatAuditActionTitle } from "@/lib/audit-labels";
 import { useStaleData } from "@/hooks/useStaleData";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -443,15 +444,13 @@ export default function HomePage() {
                         <p className="truncate text-sm font-medium">
                           {(log.details?.filename as string | undefined) ||
                             (log.details?.project_name as string | undefined) ||
-                            log.action
-                              .replace("rfi.", "RFI ")
-                              .replace("rfp.", "RFP ")}
+                            formatAuditActionTitle(log.action)}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {log.action
-                            .replace("rfi.", "")
-                            .replace("rfp.", "")
-                            .replace(/_/g, " ")}
+                        <p className="truncate text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground/85">
+                            {formatAuditActionTitle(log.action)}
+                          </span>
+                          <span className="font-mono text-muted-foreground"> · {log.action}</span>
                         </p>
                       </div>
                       <RelativeTime

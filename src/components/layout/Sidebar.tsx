@@ -135,7 +135,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                   New RFI
                 </p>
                 <p className="text-[11px] leading-snug text-slate-400">
-                  Upload Excel
+                  Upload Excel or PDF
                 </p>
               </div>
             </DropdownMenuItem>
