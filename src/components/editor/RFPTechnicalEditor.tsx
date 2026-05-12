@@ -17,16 +17,31 @@ import {
   Loader2,
   Lightbulb,
   ZoomIn,
+  PanelRightOpen,
+  PanelRightClose,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
+import Underline from "@tiptap/extension-underline";
+import TextAlign from "@tiptap/extension-text-align";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import CharacterCount from "@tiptap/extension-character-count";
+
+import { TipTapToolbar } from "./TipTapToolbar";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { RelativeTime } from "@/components/shared/RelativeTime";
@@ -91,14 +106,19 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const [timeline, setTimeline] = useState<RFPTimelineEntry[]>([]);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [streamingChunks, setStreamingChunks] = useState("");
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [isTimelineAccordionOpen, setIsTimelineAccordionOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isAdjusting, setIsAdjusting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const projectRef = useRef<RFPProjectResponse | null>(null);
+  const isDirtyRef = useRef(false);
   const editorHydrateRef = useRef(false);
   const streamingActiveRef = useRef(false);
   const streamHasChunksRef = useRef(false);
@@ -109,22 +129,42 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        bulletList: false,
+        orderedList: false,
+      }),
       Placeholder.configure({
         placeholder:
           "Bab 3 (Detail Produk) akan ditulis di sini. Gunakan panel chat di kanan untuk membuat atau menyesuaikan responsnya.",
       }),
       Typography,
+      Underline,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: "text-blue-600 underline underline-offset-2 hover:text-blue-800",
+        },
+      }),
+      CharacterCount.configure({
+        limit: 50000,
+      }),
     ],
-    editable: false,
+    editable: true,
     editorProps: {
       attributes: {
         class:
-          "outline-none min-h-full prose prose-sm prose-neutral max-w-none dark:prose-invert prose-headings:font-semibold prose-p:leading-relaxed",
+          "outline-none min-h-[400px] px-1 prose prose-neutral max-w-none dark:prose-invert prose-headings:font-semibold prose-p:leading-relaxed prose-img:rounded-lg prose-img:border prose-img:border-border",
       },
     },
     onUpdate: () => {
       if (!editorHydrateRef.current && !streamingActiveRef.current) {
+        isDirtyRef.current = true;
         setIsDirty(true);
       }
     },
@@ -141,8 +181,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         projectRef.current = nextProject;
         setProject(nextProject);
         setTimeline(nextTimeline);
-        setIsEditing(Boolean(nextProject.is_lock_held_by_me));
-        if (editor && !isDirty && !streamingActiveRef.current) {
+        if (editor && !isDirtyRef.current && !streamingActiveRef.current) {
           editorHydrateRef.current = true;
           editor.commands.setContent(nextProject.content || "");
           editorHydrateRef.current = false;
@@ -153,7 +192,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         setIsLoading(false);
       }
     },
-    [editor, isDirty, rfpId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor, rfpId],
   );
 
   useEffect(() => {
@@ -202,6 +242,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         });
         projectRef.current = queued;
         setProject(queued);
+        setWarningMessage(null);
         toast.info(`RFP generation moved to background: ${reason}`);
       } catch (error: unknown) {
         toast.error(getErrorMessage(error, "Could not queue background generation"));
@@ -216,6 +257,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       streamHasChunksRef.current = false;
       setStreamingChunks("");
       setWarningMessage(null);
+      setPendingMessage(null);
     },
     onChunk: (chunk) => {
       setStreamingChunks((prev) => {
@@ -237,6 +279,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       streamingActiveRef.current = false;
       lastGenerationRef.current = null;
       backgroundFallbackStartedRef.current = false;
+      setPendingMessage(null);
+      setIsAdjusting(false);
       const html = markdownToHtml(full);
       if (editor) {
         editorHydrateRef.current = true;
@@ -244,6 +288,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         editorHydrateRef.current = false;
       }
       setStreamingChunks("");
+      isDirtyRef.current = false;
       setIsDirty(false);
       const current = projectRef.current;
       if (!current) return;
@@ -267,19 +312,35 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
     },
     onError: (message) => {
       streamingActiveRef.current = false;
-      streamHasChunksRef.current = false;
-      toast.error(message || "Generation failed");
-      queueBackgroundFallback("connection error");
+      autoGenerateStartedRef.current = false;
+      backgroundFallbackStartedRef.current = false;
+      setPendingMessage(null);
+      setIsAdjusting(false);
+      setStreamingChunks("");
+      setWarningMessage(null);
+      toast.error(message);
     },
-    onIncomplete: (_partialContent, reason) => {
+    onIncomplete: (partialContent, reason) => {
       streamingActiveRef.current = false;
       streamHasChunksRef.current = false;
-      queueBackgroundFallback(reason);
+      setPendingMessage(null);
+      setIsAdjusting(false);
+      setStreamingChunks("");
+      setWarningMessage(null);
+      toast.error("AI generation interrupted. Trying background fallback...");
+      queueBackgroundFallback("connection lost");
     },
   });
 
   const isBusy = stream.isStreaming || isSaving;
-  const messages = useMemo(() => project?.chat_messages || [], [project?.chat_messages]);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const messages = useMemo(() => {
+    const base = project?.chat_messages || [];
+    if (pendingMessage) {
+      return [...base, { role: "user" as const, content: pendingMessage, created_at: new Date().toISOString(), user: user ? { id: user.id, name: user.name, email: user.email } : null }];
+    }
+    return base;
+  }, [project?.chat_messages, pendingMessage, user]);
 
   const ensureLock = useCallback(async () => {
     const current = projectRef.current;
@@ -308,6 +369,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       projectRef.current = released;
       setProject(released);
       setIsEditing(false);
+      isDirtyRef.current = false;
       setIsDirty(false);
       if (editor) {
         editorHydrateRef.current = true;
@@ -330,6 +392,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       projectRef.current = saved;
       setProject(saved);
       setIsEditing(false);
+      isDirtyRef.current = false;
       setIsDirty(false);
       toast.success("Changes saved");
     } catch (error: unknown) {
@@ -363,15 +426,17 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   const handlePrompt = async () => {
     const userPrompt = prompt.trim();
     if (!project || !userPrompt || isBusy) return;
+    setPendingMessage(userPrompt);
+    setPrompt("");
     try {
       const locked = await ensureLock();
       const afterUser = await appendRfpChat(locked.documentId, {
         role: "user",
         content: userPrompt,
       });
+      setPendingMessage(null);
       projectRef.current = afterUser;
       setProject(afterUser);
-      setPrompt("");
       const currentContent = editor?.getText().trim() || "";
       if (currentContent) {
         lastGenerationRef.current = {
@@ -380,13 +445,17 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
           additionalContext: userPrompt,
         };
         backgroundFallbackStartedRef.current = false;
+        setIsAdjusting(true);
         stream.adjust(locked.product, currentContent, userPrompt);
       } else {
         lastGenerationRef.current = { adjust: false };
         backgroundFallbackStartedRef.current = false;
+        setIsAdjusting(false);
         stream.generate(locked.product);
       }
     } catch (error: unknown) {
+      setPendingMessage(null);
+      setPrompt(userPrompt);
       toast.error(getErrorMessage(error, "Could not send prompt"));
     }
   };
@@ -440,17 +509,17 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 className={cn(
                   "absolute left-0 top-2 size-3 rounded-full ring-4 ring-background",
                   isLock
-                    ? "bg-amber-500"
+                    ? "bg-muted-foreground/50"
                     : isPrompt
-                      ? "bg-blue-500"
+                      ? "bg-foreground/40"
                       : isAssistant
-                        ? "bg-purple-500"
+                        ? "bg-muted-foreground/60"
                         : isSave
-                          ? "bg-emerald-500"
-                          : "bg-primary",
+                          ? "bg-foreground/30"
+                          : "bg-muted-foreground",
                 )}
               />
-              <div className="rounded-lg border bg-card p-3">
+              <div className="rounded-lg border bg-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <StatusBadge status={actionLabel(entry.action)} />
@@ -491,13 +560,20 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div
+      className={cn(
+        "grid h-full min-h-0 gap-4 transition-[grid-template-columns] duration-300 ease-in-out",
+        isPanelOpen
+          ? "lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]"
+          : "grid-cols-[minmax(0,1fr)]",
+      )}
+    >
       <div className="flex min-h-0 min-w-0 flex-col">
         <Card className="flex min-h-0 flex-1 flex-col border-border/70 shadow-sm">
           <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 border-b py-3">
             <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="size-4 text-primary" />
+                <FileText className="size-4 text-muted-foreground" />
                 <span className="truncate">
                   {project.project_name || `${project.product} – Chapter 3`}
                 </span>
@@ -514,12 +590,25 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPanelOpen((v) => !v)}
+                title={isPanelOpen ? "Focus mode" : "Show panel"}
+              >
+                {isPanelOpen ? (
+                  <PanelRightClose className="size-4" />
+                ) : (
+                  <PanelRightOpen className="size-4" />
+                )}
+              </Button>
               <Button variant="outline" size="sm" onClick={handleCopy}>
                 <Copy className="size-4" />
                 Copy
               </Button>
               {!isEditing ? (
                 <Button
+                  variant="outline"
                   size="sm"
                   onClick={handleEdit}
                   disabled={Boolean(project.is_locked_by_other) || isBusy}
@@ -533,7 +622,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                     <X className="size-4" />
                     Cancel
                   </Button>
-                  <Button size="sm" onClick={handleSave} disabled={isBusy || !isDirty}>
+                  <Button variant="outline" size="sm" onClick={handleSave} disabled={isBusy || !isDirty}>
                     {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                     Save Changes
                   </Button>
@@ -549,22 +638,22 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
           </CardHeader>
           <CardContent className="min-h-0 flex flex-1 flex-col overflow-hidden p-0">
             {lockMessage && (
-              <div className="border-b bg-amber-50 px-5 py-3 text-sm text-amber-900">
+              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
-                  <Lock className="mt-0.5 size-4 shrink-0" />
+                  <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div>
-                    <div className="font-semibold">Editing locked</div>
+                    <div className="font-semibold text-foreground">Editing locked</div>
                     <p className="mt-0.5">{lockMessage}</p>
                   </div>
                 </div>
               </div>
             )}
             {isEditing && !project.is_locked_by_other && (
-              <div className="border-b bg-blue-50 px-5 py-3 text-sm text-blue-900">
+              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
-                  <Unlock className="mt-0.5 size-4 shrink-0" />
+                  <Unlock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div>
-                    <div className="font-semibold">You are editing this RFP</div>
+                    <div className="font-semibold text-foreground">You are editing this RFP</div>
                     <p className="mt-0.5">
                       Other users cannot edit it until you click Save Changes or Cancel. Your
                       next message in the chat will adjust this content.
@@ -574,9 +663,9 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               </div>
             )}
             {warningMessage && (
-              <div className="border-b bg-amber-50 px-5 py-3 text-sm text-amber-900">
+              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div>
                     <div className="font-semibold">Knowledge base warning</div>
                     <p className="mt-0.5">{warningMessage}</p>
@@ -585,30 +674,56 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               </div>
             )}
             {stream.isStreaming && (
-              <div className="border-b bg-purple-50 px-5 py-3 text-sm text-purple-900">
+              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="size-4 animate-pulse text-purple-600" />
-                  <span className="font-semibold">AI is writing Chapter 3 in Indonesian...</span>
-                  <span className="ml-2 inline-flex items-center gap-1 text-purple-700">
-                    <span className="size-1.5 animate-bounce rounded-full bg-purple-500" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-purple-500 [animation-delay:120ms]" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-purple-500 [animation-delay:240ms]" />
+                  <Sparkles className="size-4 animate-pulse text-muted-foreground" />
+                  <span className="font-semibold text-foreground">
+                    {isAdjusting ? "AI is revising Chapter 3..." : "AI is drafting Chapter 3..."}
+                  </span>
+                  <span className="ml-2 inline-flex items-center gap-1 text-muted-foreground">
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:120ms]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:240ms]" />
                   </span>
                 </div>
               </div>
             )}
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            {isEditing && (
+              <div className="border-b bg-muted/40 px-5 py-2">
+                <TipTapToolbar editor={editor} />
+              </div>
+            )}
+            <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
               <EditorContent editor={editor} />
             </div>
+            {isEditing && editor && (
+              <div className="border-t px-5 py-2">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-3">
+                    <span>{editor.storage.characterCount.characters()} characters</span>
+                    <span>{editor.storage.characterCount.words()} words</span>
+                  </div>
+                  {isDirty && (
+                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                      <span className="size-1.5 rounded-full bg-amber-600 dark:bg-amber-400" />
+                      <span>Unsaved changes</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex min-h-0 flex-col gap-4">
-        <Card className="flex h-[56vh] min-h-[420px] max-h-[62vh] flex-col border-border/70 shadow-sm">
-          <CardHeader className="flex-row items-center justify-between space-y-0 border-b py-3">
+      {isPanelOpen && (
+      <div
+        className="flex min-h-0 flex-col gap-3 animate-in fade-in slide-in-from-right-2 duration-300"
+      >
+        <Collapsible open={isChatOpen} onOpenChange={setIsChatOpen} className="flex h-[56vh] min-h-[420px] max-h-[62vh] flex-col rounded-lg border border-border/70 bg-card shadow-sm">
+          <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-base">
-              <MessageSquare className="size-4 text-primary" />
+              <MessageSquare className="size-4 text-muted-foreground" />
               Chat
               {stream.isStreaming && (
                 <Badge variant="secondary" className="gap-1">
@@ -617,33 +732,37 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 </Badge>
               )}
             </CardTitle>
-            <p className="text-[11px] text-muted-foreground">RAG · {project.product}</p>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-3">
+            <div className="flex items-center gap-2">
+              <p className="text-[11px] text-muted-foreground">RAG · {project.product}</p>
+              <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-200", isChatOpen && "rotate-180")} />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-4">
             <div className="flex-1 space-y-3 overflow-y-auto pr-1">
             {messages.length === 0 && (
-              <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed bg-muted/30 p-5 text-sm text-muted-foreground">
                 Ask the AI to draft Bab 3 (Detail Produk) for{" "}
                 <span className="font-semibold text-foreground">{project.product}</span>. The
                 response will stream into the editor and be saved automatically.
               </div>
             )}
-            {messages.map((message, index) => (
+            {messages.map((message, index) => {
+              const isOptimistic = pendingMessage !== null && index === messages.length - 1 && message.role === "user" && message.content === pendingMessage;
+              return (
               <div
-                key={`${message.created_at || index}-${message.role}`}
+                key={`${message.created_at || index}-${message.role}-${index}`}
                 className={cn(
-                  "rounded-2xl px-3 py-2 text-sm",
+                  "rounded-2xl px-3 py-2 text-sm transition-all duration-200",
                   message.role === "user"
-                    ? "ml-6 bg-primary text-primary-foreground"
+                    ? "ml-6 bg-muted/60"
                     : "mr-6 border bg-muted/40",
+                  isOptimistic && "animate-pulse opacity-70",
                 )}
               >
                 <div
                   className={cn(
                     "mb-1 text-[10px] uppercase tracking-wide",
-                    message.role === "user"
-                      ? "text-primary-foreground/80"
-                      : "text-muted-foreground",
+                    "text-muted-foreground",
                   )}
                 >
                   {message.role === "user"
@@ -658,14 +777,13 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                     iso={message.created_at}
                     className={cn(
                       "mt-1 block text-[10px]",
-                      message.role === "user"
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground",
+                      "text-muted-foreground",
                     )}
                   />
                 )}
               </div>
-            ))}
+            );
+            })}
               {stream.isStreaming && (
                 <div className="mr-6 rounded-2xl border bg-muted/40 px-3 py-2 text-sm">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -693,8 +811,8 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 }}
                 placeholder={
                   editor?.getText().trim()
-                    ? "Ask for an adjustment (Indonesian)..."
-                    : "Generate Bab 3 detail produk in Indonesian..."
+                    ? "Ask for an adjustment..."
+                    : "Generate Bab 3 detail produk..."
                 }
                 disabled={isBusy || Boolean(project.is_locked_by_other)}
                 className="min-h-20 resize-none"
@@ -715,6 +833,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                   Suggest
                 </Button>
                 <Button
+                  variant="outline"
                   onClick={handlePrompt}
                   disabled={!prompt.trim() || isBusy || Boolean(project.is_locked_by_other)}
                   className="gap-2"
@@ -731,40 +850,58 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 Enter to send · Shift+Enter for new line
               </p>
             </div>
-          </CardContent>
-        </Card>
+          </CollapsibleContent>
+        </Collapsible>
 
-        <Card className="flex min-h-0 flex-1 flex-col border-border/70 shadow-sm">
-          <CardHeader className="flex-row items-center justify-between space-y-0 border-b py-3">
+        <Collapsible
+          open={isTimelineAccordionOpen}
+          onOpenChange={setIsTimelineAccordionOpen}
+          className="flex min-h-0 flex-1 flex-col rounded-lg border border-border/70 bg-card shadow-sm"
+        >
+          <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="size-4 text-purple-600" />
+              <Sparkles className="size-4 text-muted-foreground" />
               RFP Timeline
             </CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Newest first</span>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="size-7"
-                onClick={() => setIsTimelineOpen(true)}
+              <span
+                role="button"
+                tabIndex={0}
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsTimelineOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    setIsTimelineOpen(true);
+                  }
+                }}
                 title="Open full timeline"
               >
                 <ZoomIn className="size-4" />
                 <span className="sr-only">Open full timeline</span>
-              </Button>
+              </span>
+              <ChevronDown className={cn(
+                "size-4 text-muted-foreground transition-transform duration-200",
+                isTimelineAccordionOpen && "rotate-180",
+              )} />
             </div>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-y-auto p-4">
+          </CollapsibleTrigger>
+          <CollapsibleContent className="min-h-0 flex-1 overflow-y-auto p-4">
             {renderTimelineItems()}
-          </CardContent>
-        </Card>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
+      )}
 
       <Sheet open={isTimelineOpen} onOpenChange={setIsTimelineOpen}>
         <SheetContent side="right" className="w-[92vw] sm:max-w-3xl p-0">
           <SheetHeader className="border-b">
             <SheetTitle className="flex items-center gap-2">
-              <Sparkles className="size-4 text-purple-600" />
+              <Sparkles className="size-4 text-muted-foreground" />
               Full RFP Timeline
             </SheetTitle>
             <p className="text-xs text-muted-foreground">Complete activity trail (newest first)</p>

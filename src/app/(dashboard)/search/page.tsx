@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Download, FileText, Loader2, Search, ZoomIn, ZoomOut } from "lucide-react";
-import { Document as PdfDocument, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
+import { ArrowRight, Download, FileText, Loader2, Search } from "lucide-react";
 
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -15,22 +13,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { apiClient } from "@/lib/axios";
 import { listKnowledgeDocuments, type KBDocument } from "@/services/knowledge.service";
 import { downloadBlob, listRfiDocuments, type RFIProjectResponse } from "@/services/rfi.service";
 import { listRfpProjects, type RFPProjectResponse } from "@/services/rfp.service";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+const PdfPreviewSheet = dynamic(() => import("./PdfPreviewSheet"), { ssr: false });
 
 type SearchTab = "rfi" | "rfp" | "documents";
 
@@ -38,7 +26,7 @@ function matches(text: string | null | undefined, query: string) {
   return (text || "").toLowerCase().includes(query);
 }
 
-export default function GlobalSearchPage() {
+function GlobalSearchContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
   const [query, setQuery] = useState(initialQuery);
@@ -48,12 +36,6 @@ export default function GlobalSearchPage() {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [previewDoc, setPreviewDoc] = useState<KBDocument | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<string>("");
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pdfScale, setPdfScale] = useState(1);
 
   const loadResults = useCallback(async () => {
     setIsLoading(true);
@@ -76,12 +58,6 @@ export default function GlobalSearchPage() {
     loadResults();
   }, [loadResults]);
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
   const needle = query.trim().toLowerCase();
   const rfiResults = useMemo(() => {
     if (!needle) return rfi;
@@ -103,27 +79,8 @@ export default function GlobalSearchPage() {
     { id: "documents", label: "Documents", count: documents.length },
   ];
 
-  const openPreview = async (doc: KBDocument) => {
+  const openPreview = (doc: KBDocument) => {
     setPreviewDoc(doc);
-    setPreviewUrl(null);
-    setPreviewType("");
-    setPageNumber(1);
-    setNumPages(0);
-    setPreviewLoading(true);
-    try {
-      const res = await apiClient.get<Blob>(`/v1/knowledge/download/${encodeURIComponent(doc.filename)}`, {
-        responseType: "blob",
-      });
-      const blob = res.data;
-      const url = URL.createObjectURL(blob);
-      const headerType = res.headers["content-type"];
-      setPreviewType(blob.type || (typeof headerType === "string" ? headerType : ""));
-      setPreviewUrl(url);
-    } catch {
-      setPreviewUrl(null);
-    } finally {
-      setPreviewLoading(false);
-    }
   };
 
   const downloadDocument = async (doc: KBDocument) => {
@@ -273,74 +230,11 @@ export default function GlobalSearchPage() {
         </>
       )}
 
-      <Sheet open={Boolean(previewDoc)} onOpenChange={(open) => !open && setPreviewDoc(null)}>
-        <SheetContent className="w-[90vw] sm:max-w-[90vw]">
-          <SheetHeader>
-            <SheetTitle>{previewDoc?.filename}</SheetTitle>
-            <SheetDescription>
-              {previewDoc?.product || "Unassigned"} Knowledge Base document
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
-            {previewLoading ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                <Loader2 className="mr-2 size-5 animate-spin" />
-                Loading preview...
-              </div>
-            ) : previewUrl && previewType.includes("pdf") ? (
-              <div className="space-y-4">
-                <div className="sticky top-0 z-10 flex items-center justify-between rounded-lg border bg-background p-2">
-                  <div className="text-sm text-muted-foreground">
-                    Page {pageNumber} of {numPages || "?"}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPageNumber((page) => Math.max(1, page - 1))}
-                      disabled={pageNumber <= 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPageNumber((page) => Math.min(numPages || page, page + 1))}
-                      disabled={numPages > 0 && pageNumber >= numPages}
-                    >
-                      Next
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setPdfScale((scale) => Math.max(0.6, scale - 0.1))}>
-                      <ZoomOut className="size-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setPdfScale((scale) => Math.min(1.8, scale + 0.1))}>
-                      <ZoomIn className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex justify-center rounded-xl bg-muted p-4">
-                  <PdfDocument
-                    file={previewUrl}
-                    onLoadSuccess={({ numPages: pages }) => setNumPages(pages)}
-                  >
-                    <Page pageNumber={pageNumber} scale={pdfScale} />
-                  </PdfDocument>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed p-8 text-center">
-                <p className="font-medium">Inline preview is available for PDF files only.</p>
-                {previewDoc && (
-                  <Button className="mt-4" onClick={() => downloadDocument(previewDoc)}>
-                    <Download className="size-4" />
-                    Download {previewDoc.filename}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <PdfPreviewSheet
+        doc={previewDoc}
+        open={Boolean(previewDoc)}
+        onOpenChange={(open) => !open && setPreviewDoc(null)}
+      />
     </div>
   );
 }
@@ -355,4 +249,12 @@ function EmptyState({ label }: { label: string }) {
 
 function MessageBadge({ label }: { label: string }) {
   return <Badge variant="secondary">{label}</Badge>;
+}
+
+export default function GlobalSearchPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-16 text-muted-foreground">Loading search...</div>}>
+      <GlobalSearchContent />
+    </Suspense>
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -46,7 +46,10 @@ import { Badge } from "@/components/ui/badge";
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { ActionButtons } from "@/components/shared/ActionButtons";
 import { cn } from "@/lib/utils";
+import { useStaleData } from "@/hooks/useStaleData";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Tab = "rfi" | "rfp";
 
@@ -56,61 +59,77 @@ function getErrorMessage(error: unknown, fallback = "Request failed") {
     typeof error === "object" &&
     error !== null &&
     "response" in error &&
-    typeof (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail === "string"
+    typeof (error as { response?: { data?: { detail?: unknown } } }).response
+      ?.data?.detail === "string"
   ) {
-    return String((error as { response: { data: { detail: string } } }).response.data.detail);
+    return String(
+      (error as { response: { data: { detail: string } } }).response.data.detail
+    );
   }
   return fallback;
 }
 
 export default function HomePage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [history, setHistory] = useState<AuditLogEntry[]>([]);
-  const [rfiDocs, setRfiDocs] = useState<RFIProjectResponse[]>([]);
-  const [rfpDocs, setRfpDocs] = useState<RFPProjectResponse[]>([]);
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("rfi");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [statsData, historyData, rfiData, rfpData] = await Promise.all([
-        getDashboardStats().catch(() => ({ total_rfi: 0, generated_rfi: 0, active_documents: 0 })),
-        getDashboardHistory(20).catch(() => []),
-        listMyRfiDocuments().catch(() => []),
-        listMyRfpProjects().catch(() => []),
-      ]);
-      setStats(statsData);
-      setHistory(historyData);
-      setRfiDocs(rfiData);
-      setRfpDocs(rfpData);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["dashboard-rfi"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-rfp"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-history"] });
+  }, [queryClient]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const { data: stats, isLoading: statsLoading } = useStaleData(
+    "dashboard-stats",
+    () => getDashboardStats().catch(() => ({
+      total_rfi: 0,
+      generated_rfi: 0,
+      active_documents: 0,
+    }))
+  );
+
+  const { data: history = [], isLoading: historyLoading } = useStaleData(
+    "dashboard-history",
+    () => getDashboardHistory(20).catch(() => [])
+  );
+
+  const { data: rfiDocs = [], isLoading: rfiLoading, refetch: refetchRfi } = useStaleData(
+    "dashboard-rfi",
+    () => listMyRfiDocuments().catch(() => [])
+  );
+
+  const { data: rfpDocs = [], refetch: refetchRfp } = useStaleData(
+    "dashboard-rfp",
+    () => listMyRfpProjects().catch(() => [])
+  );
+
+  const isLoading = statsLoading || historyLoading || rfiLoading;
 
   const sortedHistory = useMemo(
     () =>
       [...history].sort((a, b) =>
-        (b.created_at || "").localeCompare(a.created_at || ""),
+        (b.created_at || "").localeCompare(a.created_at || "")
       ),
-    [history],
+    [history]
   );
 
   const handleDeleteRfi = async (doc: RFIProjectResponse) => {
-    if (!window.confirm(`Move "${doc.fileName}" to Trash? Admins can restore it later.`)) return;
+    if (
+      !window.confirm(
+        `Move "${doc.fileName}" to Trash? Admins can restore it later.`
+      )
+    )
+      return;
     setPendingDelete(`rfi:${doc.documentId}`);
     try {
       await softDeleteRfiDocument(doc.documentId);
       toast.success("Moved to Trash");
-      await loadData();
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, "Failed to delete RFI"));
+      refetch();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setPendingDelete(null);
     }
@@ -118,12 +137,15 @@ export default function HomePage() {
 
   const handleDeleteRfp = async (doc: RFPProjectResponse) => {
     const label = doc.project_name || `${doc.product} – Chapter 3`;
-    if (!window.confirm(`Move "${label}" to Trash? Admins can restore it later.`)) return;
+    if (
+      !window.confirm(`Move "${label}" to Trash? Admins can restore it later.`)
+    )
+      return;
     setPendingDelete(`rfp:${doc.documentId}`);
     try {
       await softDeleteRfpProject(doc.documentId);
       toast.success("Moved to Trash");
-      await loadData();
+      refetch();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Failed to delete RFP"));
     } finally {
@@ -134,33 +156,28 @@ export default function HomePage() {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
-        <p className="animate-pulse text-muted-foreground">Loading dashboard...</p>
+        <p className="animate-pulse text-muted-foreground">
+          Loading dashboard...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-6 overflow-hidden px-6 py-6">
-      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4 sm:gap-6 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight">
             Welcome back, {user?.name?.split(" ")[0] || "there"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Review your generated RFI/RFP projects and recent activity.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/rfi/upload">
-            <Button variant="outline">Upload RFI</Button>
-          </Link>
-          <Link href="/rfp/upload">
-            <Button>New RFP</Button>
-          </Link>
-        </div>
+        <ActionButtons buttonClassName="sm:!h-9 sm:!text-sm" />
       </div>
 
-      <div className="grid shrink-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid shrink-0 gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total RFI"
           value={stats?.total_rfi || 0}
@@ -187,8 +204,8 @@ export default function HomePage() {
         />
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Card className="flex min-h-0 flex-col border-border/70 shadow-sm">
+      <div className="grid min-h-0 flex-1 gap-4 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="flex min-h-[280px] max-h-[480px] xl:max-h-none xl:min-h-0 flex-col border-border/70 shadow-sm">
           <CardHeader className="flex-row items-center justify-between space-y-0 border-b py-3">
             <CardTitle className="flex items-center gap-2">
               {tab === "rfi" ? (
@@ -232,7 +249,7 @@ export default function HomePage() {
                     Upload a workbook and run auto-fill to see it here.
                   </p>
                   <Link href="/rfi/upload">
-                    <Button className="mt-4" size="sm">
+                    <Button className="mt-4">
                       Upload RFI
                     </Button>
                   </Link>
@@ -249,11 +266,15 @@ export default function HomePage() {
                   </TableHeader>
                   <TableBody>
                     {rfiDocs.map((doc) => {
-                      const deleting = pendingDelete === `rfi:${doc.documentId}`;
+                      const deleting =
+                        pendingDelete === `rfi:${doc.documentId}`;
                       return (
                         <TableRow key={doc.documentId}>
                           <TableCell className="font-medium">
-                            <Link className="hover:underline" href={`/rfi/${doc.documentId}`}>
+                            <Link
+                              className="hover:underline"
+                              href={`/rfi/${doc.documentId}`}
+                            >
                               {doc.fileName}
                             </Link>
                           </TableCell>
@@ -283,7 +304,7 @@ export default function HomePage() {
                                 size="icon-sm"
                                 onClick={() => handleDeleteRfi(doc)}
                                 disabled={deleting}
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                               >
                                 {deleting ? (
                                   <Loader2 className="size-4 animate-spin" />
@@ -303,10 +324,11 @@ export default function HomePage() {
               <div className="m-6 rounded-xl border border-dashed p-8 text-center">
                 <p className="font-medium">No RFP projects yet</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Create an RFP to generate Chapter 3 product details with the AI assistant.
+                  Create an RFP to generate Chapter 3 product details with the
+                  AI assistant.
                 </p>
                 <Link href="/rfp/upload">
-                  <Button className="mt-4" size="sm">
+                  <Button className="mt-4">
                     New RFP
                   </Button>
                 </Link>
@@ -324,12 +346,16 @@ export default function HomePage() {
                 </TableHeader>
                 <TableBody>
                   {rfpDocs.map((doc) => {
-                    const label = doc.project_name || `${doc.product} – Chapter 3`;
+                    const label =
+                      doc.project_name || `${doc.product} – Chapter 3`;
                     const deleting = pendingDelete === `rfp:${doc.documentId}`;
                     return (
                       <TableRow key={doc.documentId}>
                         <TableCell className="font-medium">
-                          <Link className="hover:underline" href={`/rfp/${doc.documentId}`}>
+                          <Link
+                            className="hover:underline"
+                            href={`/rfp/${doc.documentId}`}
+                          >
                             {label}
                           </Link>
                         </TableCell>
@@ -340,7 +366,9 @@ export default function HomePage() {
                           <StatusBadge status={doc.status} />
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          <RelativeTime iso={doc.updated_at || doc.created_at} />
+                          <RelativeTime
+                            iso={doc.updated_at || doc.created_at}
+                          />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -354,7 +382,7 @@ export default function HomePage() {
                               size="icon-sm"
                               onClick={() => handleDeleteRfp(doc)}
                               disabled={deleting}
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             >
                               {deleting ? (
                                 <Loader2 className="size-4 animate-spin" />
@@ -373,7 +401,7 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 flex-col border-border/70 shadow-sm">
+        <Card className="flex min-h-[280px] max-h-[420px] xl:max-h-none xl:min-h-0 flex-col border-border/70 shadow-sm">
           <CardHeader className="flex-row items-center justify-between space-y-0 border-b py-3">
             <CardTitle className="flex items-center gap-2">
               <FileClock className="size-5" />
@@ -381,9 +409,11 @@ export default function HomePage() {
             </CardTitle>
             <span className="text-xs text-muted-foreground">Newest first</span>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-auto">
+          <CardContent className="scrollbar-thin min-h-0 flex-1 overflow-auto">
             {sortedHistory.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">No activity found.</p>
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No activity found.
+              </p>
             ) : (
               <div className="space-y-2">
                 {sortedHistory.map((log) => {
@@ -392,34 +422,41 @@ export default function HomePage() {
                     log.action.includes("autofill") ||
                     log.action.includes("generate") ||
                     log.action === "rfp.assistant";
-                  const isUpdate = log.action.includes("update") || log.action.includes("save");
+                  const isUpdate =
+                    log.action.includes("update") ||
+                    log.action.includes("save");
                   const isDelete = log.action.includes("delete");
                   return (
                     <div
                       key={log.id}
                       className="flex items-center gap-3 rounded-lg border bg-card/50 p-3"
                     >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                         {isUpload ? (
-                          <FileSpreadsheet className="size-4 text-blue-600" />
+                          <FileSpreadsheet className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : isGenerate ? (
-                          <Sparkles className="size-4 text-purple-600" />
+                          <Sparkles className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : isUpdate ? (
-                          <Activity className="size-4 text-emerald-600" />
+                          <Activity className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : isDelete ? (
-                          <Trash2 className="size-4 text-red-600" />
+                          <Trash2 className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : (
-                          <FileClock className="size-4 text-muted-foreground" />
+                          <FileClock className="size-4 text-slate-400 dark:text-slate-500" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
                           {(log.details?.filename as string | undefined) ||
                             (log.details?.project_name as string | undefined) ||
-                            log.action.replace("rfi.", "RFI ").replace("rfp.", "RFP ")}
+                            log.action
+                              .replace("rfi.", "RFI ")
+                              .replace("rfp.", "RFP ")}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {log.action.replace("rfi.", "").replace("rfp.", "").replace(/_/g, " ")}
+                          {log.action
+                            .replace("rfi.", "")
+                            .replace("rfp.", "")
+                            .replace(/_/g, " ")}
                         </p>
                       </div>
                       <RelativeTime

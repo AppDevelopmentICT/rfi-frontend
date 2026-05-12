@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Search } from "lucide-react";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { listRfiDocuments, type RFIProjectResponse } from "@/services/rfi.service";
 
-export default function DocumentSearchPage() {
+function DocumentSearchContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
   const [query, setQuery] = useState(initialQuery);
@@ -131,5 +131,13 @@ export default function DocumentSearchPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function DocumentSearchPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>}>
+      <DocumentSearchContent />
+    </Suspense>
   );
 }

@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { UserPill } from "@/components/shared/UserPill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -19,66 +18,21 @@ import {
 } from "@/components/ui/table";
 import { listAdminUsers, setUserAdmin } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+import { useFetchOnNavigation } from "@/hooks/useFetchOnNavigation";
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<RFIUser[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
-
-  // Pagination & filter state
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [total, setTotal] = useState(0);
-  const [q, setQ] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
-
-  // Debounce the search input
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQ(q), 350);
-    return () => clearTimeout(t);
-  }, [q]);
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedQ, roleFilter, pageSize]);
-
-  const params = useMemo(
-    () => ({
-      q: debouncedQ || undefined,
-      is_admin: roleFilter === "admin" ? true : roleFilter === "user" ? false : undefined,
-      page,
-      page_size: pageSize,
-    }),
-    [debouncedQ, roleFilter, page, pageSize]
+  const { data: users = [], isLoading, refetch } = useFetchOnNavigation(
+    "adminUsers",
+    listAdminUsers
   );
-
-  const loadUsers = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const data = await listAdminUsers(params);
-      setUsers(data.items);
-      setTotal(data.total);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params]);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   const toggleAdmin = async (user: RFIUser) => {
     try {
       setUpdatingId(user.id);
-      const updated = await setUserAdmin(user.id, !user.is_admin);
-      setUsers((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item))
-      );
+      await setUserAdmin(user.id, !user.is_admin);
       toast.success("User role updated.");
+      refetch();
     } catch {
       toast.error("Failed to update user role.");
     } finally {
@@ -140,13 +94,14 @@ export default function AdminUsersPage() {
 
         <CardContent className="p-0">
           {isLoading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground animate-pulse">
-              Loading users…
-            </p>
-          ) : users.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">
-              No users found matching your filters.
-            </p>
+            <div className="space-y-3 p-4">
+              <Skeleton className="h-5 w-1/4" />
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </div>
           ) : (
             <Table>
               <TableHeader>

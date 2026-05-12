@@ -7,11 +7,11 @@ interface StatusBadgeProps {
 }
 
 const statusStyles: Record<string, string> = {
-  completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  generating: "border-blue-200 bg-blue-50 text-blue-700",
-  failed: "border-red-200 bg-red-50 text-red-700",
-  editing: "border-amber-200 bg-amber-50 text-amber-700",
-  draft: "border-slate-200 bg-slate-50 text-slate-700",
+  completed: "border-slate-200/80 bg-slate-50/60 text-slate-700",
+  generating: "border-slate-200 bg-slate-50 text-slate-600",
+  failed: "border-slate-200 bg-slate-50 text-slate-600",
+  editing: "border-slate-200 bg-slate-50 text-slate-600",
+  draft: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {

@@ -85,21 +85,6 @@ export async function listAdminTrash(): Promise<AdminTrashResponse> {
   return data;
 }
 
-export async function listAdminProjects(params: {
-  type?: "rfi" | "rfp";
-  status?: string;
-  include_deleted?: boolean;
-} = {}): Promise<AdminTrashResponse> {
-  const query: Record<string, string> = {};
-  if (params.type) query.type = params.type;
-  if (params.status) query.status = params.status;
-  if (typeof params.include_deleted === "boolean") {
-    query.include_deleted = params.include_deleted ? "true" : "false";
-  }
-  const { data } = await apiClient.get<AdminTrashResponse>("/v1/admin/projects", { params: query });
-  return data;
-}
-
 export async function restoreAdminRfi(id: number): Promise<AdminTrashItem> {
   const { data } = await apiClient.post<AdminTrashItem>(`/v1/admin/rfi/${id}/restore`);
   return data;
