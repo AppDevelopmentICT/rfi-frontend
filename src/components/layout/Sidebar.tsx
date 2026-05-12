@@ -132,10 +132,24 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
               <FileSpreadsheet className="size-4 shrink-0 text-slate-500" />
               <div>
                 <p className="text-[13px] font-semibold text-slate-800">
-                  New RFI
+                  New RFI (Excel)
                 </p>
                 <p className="text-[11px] leading-snug text-slate-400">
-                  Upload Excel or PDF
+                  Upload Excel workbook
+                </p>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-gray-50 focus:bg-gray-50"
+              onClick={() => router.push("/rfi-pdf/upload")}
+            >
+              <FileText className="size-4 shrink-0 text-slate-500" />
+              <div>
+                <p className="text-[13px] font-semibold text-slate-800">
+                  New RFI (PDF)
+                </p>
+                <p className="text-[11px] leading-snug text-slate-400">
+                  Upload PDF folder with auto-draft
                 </p>
               </div>
             </DropdownMenuItem>
