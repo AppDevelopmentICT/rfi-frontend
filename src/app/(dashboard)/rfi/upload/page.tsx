@@ -24,7 +24,7 @@ export default function UploadRfiPage() {
   const [isOpening, setIsOpening] = useState(false);
   const router = useRouter();
 
-  const { mutate, isPending } = useReadExcelMutation();
+  const { mutate } = useReadExcelMutation();
   const setDocumentInfo = useRFIStore((s) => s.setDocumentInfo);
   const resetRFIStore = useRFIStore((s) => s.reset);
   const setExcelData = useExcelStore((s) => s.setExcelData);

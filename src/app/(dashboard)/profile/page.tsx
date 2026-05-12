@@ -3,19 +3,40 @@
 import { useEffect, useState } from "react";
 import { Loader2, User } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth-context";
 import { apiClient } from "@/lib/axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+interface ProfileRole {
+  name?: string;
+}
+
+interface ProfileDetails {
+  department?: { name?: string };
+  manager?: { name?: string };
+  roles?: ProfileRole[];
+  join_date?: string;
+}
+
+interface ProfileExtra {
+  verified?: boolean;
+}
+
+interface AuthProfile {
+  name?: string | null;
+  email: string;
+  is_admin?: boolean;
+  details?: ProfileDetails;
+  extra?: ProfileExtra;
+}
+
 export default function ProfilePage() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const { data } = await apiClient.get("/v1/auth/profile");
+        const { data } = await apiClient.get<AuthProfile>("/v1/auth/profile");
         setProfile(data);
       } catch (error) {
         console.error("Failed to load profile", error);
@@ -108,7 +129,7 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Roles</p>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {details.roles.map((r: any, idx: number) => (
+                    {details.roles.map((r, idx) => (
                       <span key={idx} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">
                         {r.name}
                       </span>

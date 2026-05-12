@@ -192,7 +192,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         setIsLoading(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [editor, rfpId],
   );
 
@@ -248,7 +247,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         toast.error(getErrorMessage(error, "Could not queue background generation"));
       }
     },
-    [refresh],
+    [],
   );
 
   const stream = useRFPStream({
@@ -320,7 +319,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       setWarningMessage(null);
       toast.error(message);
     },
-    onIncomplete: (partialContent, reason) => {
+    onIncomplete: () => {
       streamingActiveRef.current = false;
       streamHasChunksRef.current = false;
       setPendingMessage(null);

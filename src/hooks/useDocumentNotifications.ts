@@ -4,10 +4,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export function useDocumentNotifications(
-  key: string,
-  documentCountKey: string
-) {
+export function useDocumentNotifications(key: string) {
   const queryClient = useQueryClient();
   const prevCountRef = useRef<number | null>(null);
 

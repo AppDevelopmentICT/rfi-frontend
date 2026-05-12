@@ -14,12 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  getDashboardHistory,
-  getDashboardStats,
-  type AuditLogEntry,
-  type DashboardStats,
-} from "@/services/dashboard.service";
+import { getDashboardHistory, getDashboardStats } from "@/services/dashboard.service";
 import {
   exportRfiExcel,
   listMyRfiDocuments,
@@ -96,12 +91,12 @@ export default function HomePage() {
     () => getDashboardHistory(20).catch(() => [])
   );
 
-  const { data: rfiDocs = [], isLoading: rfiLoading, refetch: refetchRfi } = useStaleData(
+  const { data: rfiDocs = [], isLoading: rfiLoading } = useStaleData(
     "dashboard-rfi",
     () => listMyRfiDocuments().catch(() => [])
   );
 
-  const { data: rfpDocs = [], refetch: refetchRfp } = useStaleData(
+  const { data: rfpDocs = [] } = useStaleData(
     "dashboard-rfp",
     () => listMyRfpProjects().catch(() => [])
   );

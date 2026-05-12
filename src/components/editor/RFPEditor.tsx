@@ -29,6 +29,8 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
   const generateAllMutation = useGenerateAllMutation();
   const regenerateMutation = useRegenerateMutation();
 
+  // TanStack Virtual returns unstable function refs; React Compiler skips memoization here by design.
+  // eslint-disable-next-line react-hooks/incompatible-library -- useVirtualizer is intentional
   const virtualizer = useVirtualizer({
     count: questions.length,
     getScrollElement: () => parentRef.current,

@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Download,
+  Search,
+  X,
+} from "lucide-react";
 
 import { ExactTime } from "@/components/shared/RelativeTime";
 import { UserPill } from "@/components/shared/UserPill";
@@ -22,11 +30,11 @@ import {
   listAdminUsers,
   listAuditFilterOptions,
   listAuditLogs,
-  type AdminAuditLog,
   type AuditFilterOptions,
 } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 function normalizeAction(action: string): string {
   return action
@@ -38,7 +46,7 @@ function normalizeAction(action: string): string {
 }
 
 export default function AdminAuditLogPage() {
-  const [users, setUsers] = useState<RFIUser[]>([]);
+  const [allUsers, setAllUsers] = useState<RFIUser[]>([]);
   const [options, setOptions] = useState<AuditFilterOptions>({
     actions: [],
     resource_types: [],
@@ -52,11 +60,17 @@ export default function AdminAuditLogPage() {
   const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [total, setTotal] = useState(0);
   const [detailOpen, setDetailOpen] = useState<number | null>(null);
 
   const closeDetail = useCallback(() => setDetailOpen(null), []);
-  const pageSize = 25;
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setDebouncedQ(q);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [q]);
 
   const params = useMemo(
     () => ({
@@ -73,18 +87,17 @@ export default function AdminAuditLogPage() {
   );
 
   const fetchKey = `admin-audit-${JSON.stringify(params)}`;
-  const { data: auditData, isLoading, refetch } = useFetchOnNavigation(
+  const { data: auditData, isLoading } = useFetchOnNavigation(
     fetchKey,
     () => listAuditLogs(params)
   );
 
   const logs = auditData?.items ?? [];
+  const total = auditData?.total ?? 0;
 
-  useEffect(() => {
-    if (auditData?.total !== undefined) {
-      setTotal(auditData.total);
-    }
-  }, [auditData?.total]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, total);
 
   useEffect(() => {
     Promise.all([

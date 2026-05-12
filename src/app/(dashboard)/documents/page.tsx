@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -75,8 +75,8 @@ export default function DocumentsPage() {
 
   const isLoading = rfiLoading || rfpLoading;
 
-  useDocumentNotifications("documents-rfi", "documents-rfi");
-  useDocumentNotifications("documents-rfp", "documents-rfp");
+  useDocumentNotifications("documents-rfi");
+  useDocumentNotifications("documents-rfp");
 
   const filteredRfi = useMemo(() => {
     const needle = query.trim().toLowerCase();

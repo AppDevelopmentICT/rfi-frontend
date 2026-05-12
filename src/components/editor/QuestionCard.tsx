@@ -111,7 +111,7 @@ export const QuestionCard = memo(function QuestionCard({
               >
                 <Database className="shrink-0" />
                 <span className="truncate">
-                  {question.sources.map((source, i) => (
+                  {question.sources.map((source) => (
                     <a
                       key={source}
                       href={`/api/v1/knowledge/download/${encodeURIComponent(source)}`}

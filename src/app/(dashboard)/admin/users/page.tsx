@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { UserPill } from "@/components/shared/UserPill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -20,12 +28,44 @@ import { listAdminUsers, setUserAdmin } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
 import { useFetchOnNavigation } from "@/hooks/useFetchOnNavigation";
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+
 export default function AdminUsersPage() {
-  const { data: users = [], isLoading, refetch } = useFetchOnNavigation(
-    "adminUsers",
-    listAdminUsers
-  );
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setDebouncedQ(q);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [q]);
+
+  const params = useMemo(() => {
+    const is_admin =
+      roleFilter === "admin" ? true : roleFilter === "user" ? false : undefined;
+    return {
+      q: debouncedQ.trim() || undefined,
+      is_admin,
+      page,
+      page_size: pageSize,
+    };
+  }, [debouncedQ, roleFilter, page, pageSize]);
+
+  const fetchKey = `admin-users-${JSON.stringify(params)}`;
+
+  const { data, isLoading, refetch } = useFetchOnNavigation(
+    fetchKey,
+    () => listAdminUsers(params)
+  );
+
+  const users = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   const toggleAdmin = async (user: RFIUser) => {
     try {
@@ -40,8 +80,8 @@ export default function AdminUsersPage() {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const startItem = (page - 1) * pageSize + 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, total);
 
   return (
@@ -70,7 +110,10 @@ export default function AdminUsersPage() {
             {/* Role filter */}
             <select
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                setPage(1);
+              }}
               className="h-8 rounded-lg border bg-background px-3 text-sm"
             >
               <option value="">All roles</option>
@@ -80,7 +123,10 @@ export default function AdminUsersPage() {
             {/* Page size */}
             <select
               value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
               className="h-8 rounded-lg border bg-background px-3 text-sm"
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
