@@ -13,7 +13,19 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 60 * 1000,
-            retry: 1,
+            retry: (failureCount, error: unknown) => {
+              if (
+                error &&
+                typeof error === "object" &&
+                "response" in error &&
+                (error as { response?: { status?: number } }).response?.status === 401
+              ) {
+                return false;
+              }
+              return failureCount < 1;
+            },
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
           },
         },
       }),

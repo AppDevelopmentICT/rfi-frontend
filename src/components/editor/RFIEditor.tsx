@@ -26,6 +26,7 @@ interface RFIEditorProps {
   onSaveChanges?: () => Promise<void> | void;
   onCancelEdit?: () => Promise<void> | void;
   onForceUnlock?: () => Promise<void> | void;
+  onRegeneratingChange?: (isRegenerating: boolean) => void;
 }
 
 export function RFIEditor({
@@ -42,6 +43,7 @@ export function RFIEditor({
   onSaveChanges,
   onCancelEdit,
   onForceUnlock,
+  onRegeneratingChange,
 }: RFIEditorProps) {
   const router = useRouter();
   const file = useRFIStore((s) => s.file);
@@ -59,6 +61,10 @@ export function RFIEditor({
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [regeneratingRows, setRegeneratingRows] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    onRegeneratingChange?.(regeneratingRows.size > 0);
+  }, [regeneratingRows.size, onRegeneratingChange]);
 
   useEffect(() => {
     if (!isDirty) return;

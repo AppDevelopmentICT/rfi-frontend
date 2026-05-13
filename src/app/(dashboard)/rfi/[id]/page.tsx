@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { FileClock, Lock, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -22,7 +22,6 @@ import {
 } from "@/services/rfi.service";
 import { useExcelStore } from "@/store/useExcelStore";
 import { useRFIStore } from "@/store/useRFIStore";
-import { useJobPolling } from "@/hooks/usePollingManager";
 
 function errorMessage(error: unknown) {
   if (
@@ -42,6 +41,17 @@ function errorMessage(error: unknown) {
   return undefined;
 }
 
+function isAuthError(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "response" in error &&
+    (error as { response?: { status?: number } }).response?.status === 401
+  );
+}
+
+const FINAL_STATUSES = new Set(["completed", "failed"]);
+
 export default function RfiDetailPage() {
   const params = useParams<{ id: string }>();
   const documentId = params.id;
@@ -53,6 +63,19 @@ export default function RfiDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLocking, setIsLocking] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const pollingStoppedRef = useRef(false);
+  const fetchInFlightRef = useRef(false);
+
+  const activeJobs = useRFIStore((s) => s.activeJobs);
+  const updateJob = useRFIStore((s) => s.updateJob);
+  const isGenerating = document?.status === "generating" || activeJobs.some((j) => j.id === documentId && j.status === "generating");
+
+  const isGeneratingRef = useRef(isGenerating);
+  isGeneratingRef.current = isGenerating;
+  const isRegeneratingRef = useRef(isRegenerating);
+  isRegeneratingRef.current = isRegenerating;
 
   const loadDocument = useCallback(async () => {
     const data = await getRfiDocument(documentId);
@@ -93,58 +116,73 @@ export default function RfiDetailPage() {
     };
   }, [documentId, setExcelData]);
 
-  // Poll for background generation completion
-  useJobPolling(
-    document?.status === "generating" ? documentId : "",
-    5000,
-    // onComplete
-    (doc) => {
-      const rfiDoc = doc as RFIProjectResponse;
-      setDocument(rfiDoc);
-      if (rfiDoc.excelData) {
-        setExcelData(rfiDoc.excelData);
-      }
-      // Clear the activeJob from Zustand store so isGenerating becomes false
-      const rfiStore = useRFIStore.getState();
-      const matchingJob = rfiStore.activeJobs.find(j => j.id === documentId);
-      if (matchingJob) {
-        rfiStore.updateJob(documentId, "completed");
-      }
-      loadTimeline().catch(() => {});
-      toast.success("Workbook filled successfully!");
-    },
-    // onFailed
-    () => {
-      const rfiStore = useRFIStore.getState();
-      const matchingJob = rfiStore.activeJobs.find(j => j.id === documentId);
-      if (matchingJob) {
-        rfiStore.updateJob(documentId, "failed");
-      }
-      loadDocument().catch(() => {});
-      toast.error("Workbook generation failed.");
-    }
-  );
-
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (globalThis.document.visibilityState !== "visible") return;
-      // During edit mode, only refresh document metadata (lock status, etc.)
-      // Do NOT overwrite excelData — the user may have unsaved local edits.
-      getRfiDocument(documentId)
-        .then((data) => {
-          setDocument(data);
-          if (!data.is_lock_held_by_me && data.excelData) {
-            setExcelData(data.excelData);
+    if (isRegenerating) return;
+
+    if (isGenerating) {
+      pollingStoppedRef.current = false;
+    }
+
+    let stopped = false;
+    const intervalMs = isGenerating ? 5000 : 30000;
+
+    console.debug(`[Polling:page] start doc=${documentId} interval=${intervalMs}ms generating=${isGenerating}`);
+
+    const interval = setInterval(async () => {
+      if (stopped || pollingStoppedRef.current) return;
+      if (isRegeneratingRef.current) return;
+      if (fetchInFlightRef.current) return;
+      if (globalThis.document?.visibilityState !== "visible") return;
+
+      fetchInFlightRef.current = true;
+      try {
+        const doc = await getRfiDocument(documentId);
+        if (stopped) return;
+
+        setDocument(doc);
+        if (!doc.is_lock_held_by_me && doc.excelData) {
+          setExcelData(doc.excelData);
+        }
+
+        const currentlyGenerating = isGeneratingRef.current;
+        if (currentlyGenerating && FINAL_STATUSES.has(doc.status)) {
+          const rfiStore = useRFIStore.getState();
+          const matchingJob = rfiStore.activeJobs.find((j) => j.id === documentId);
+          if (matchingJob) {
+            rfiStore.updateJob(documentId, doc.status);
           }
-        })
-        .catch(() => {});
-      // Only refresh timeline when not editing (it's not useful during editing)
-      if (!document?.is_lock_held_by_me) {
-        loadTimeline().catch(() => {});
+          loadTimeline().catch(() => {});
+
+          if (doc.status === "completed") {
+            toast.success("Workbook filled successfully!");
+          } else {
+            toast.error("Workbook generation failed.");
+          }
+
+          pollingStoppedRef.current = true;
+          console.debug(`[Polling:page] stopped — status=${doc.status}`);
+          clearInterval(interval);
+        } else if (!currentlyGenerating) {
+          loadTimeline().catch(() => {});
+        }
+      } catch (err) {
+        if (isAuthError(err)) {
+          pollingStoppedRef.current = true;
+          console.warn("[Polling:page] stopped — 401");
+          clearInterval(interval);
+          return;
+        }
+      } finally {
+        fetchInFlightRef.current = false;
       }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [documentId, setExcelData, loadTimeline, document?.is_lock_held_by_me]);
+    }, intervalMs);
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      console.debug(`[Polling:page] cleanup doc=${documentId}`);
+    };
+  }, [documentId, isGenerating, isRegenerating]);
 
   const lockMessage = useMemo(() => {
     if (!document?.is_locked_by_other || !document.editing_user) return null;
@@ -178,7 +216,6 @@ export default function RfiDetailPage() {
     setIsUnlocking(true);
     try {
       await unlockRfiDocument(documentId);
-      // Parallelize refresh calls since they are independent
       const [docData] = await Promise.all([
         getRfiDocument(documentId),
         loadTimeline(),
@@ -219,61 +256,119 @@ export default function RfiDetailPage() {
           onSaveChanges={handleSave}
           onCancelEdit={handleCancel}
           onForceUnlock={handleCancel}
+          onRegeneratingChange={setIsRegenerating}
         />
       </div>
 
-      <Card className="h-full overflow-hidden border-border/70 shadow-sm">
-        <CardHeader className="border-b">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileClock className="size-4" />
-            Document Timeline
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="h-[calc(100%-4rem)] overflow-y-auto p-4">
-          {timeline.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No timeline activity yet.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {timeline.map((entry) => {
-                const isLock = entry.action.includes("lock");
-                const isGenerate = entry.action.includes("autofill") || entry.action.includes("generate");
-                return (
-                  <div key={entry.id} className="relative pl-8">
-                    <span className="absolute left-2 top-2 h-full w-px bg-border" />
-                    <span className="absolute left-0 top-1 flex size-4 items-center justify-center rounded-full bg-background ring-4 ring-background">
-                      {isLock ? (
-                        <Lock className="size-3 text-muted-foreground" />
-                      ) : isGenerate ? (
-                        <Zap className="size-3 text-muted-foreground" />
-                      ) : (
-                        <FileClock className="size-3 text-muted-foreground" />
-                      )}
-                    </span>
-                    <div className="rounded-lg border bg-card p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <StatusBadge status={entry.action.replace("rfi.", "")} />
-                          <p className="mt-2 text-sm font-medium">
-                            {entry.action.replace("rfi.", "RFI ").replace(/_/g, " ")}
-                          </p>
-                        </div>
-                        <RelativeTime iso={entry.created_at} className="shrink-0 text-xs text-muted-foreground" />
-                      </div>
-                      <UserPill
-                        className="mt-3"
-                        name={entry.user?.name}
-                        email={entry.user?.email}
-                      />
+      <div className="hidden flex-col gap-4 lg:flex">
+        {document && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <FileClock className="size-4 text-muted-foreground" />
+                Document Info
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Status</span>
+                <StatusBadge status={document.status} />
+              </div>
+              {document.is_locked_by_other && document.editing_user && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Locked by</span>
+                  <UserPill name={document.editing_user?.name} email={document.editing_user?.email} />
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">File</span>
+                <span className="max-w-[200px] truncate font-mono text-xs">
+                  {document.fileName || document.filename}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Created</span>
+                <RelativeTime iso={document.created_at} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Last updated</span>
+                <RelativeTime iso={document.updated_at} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {document && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Lock className="size-4 text-muted-foreground" />
+                Lock Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {document.is_lock_held_by_me ? (
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <Lock className="size-3.5" />
+                  You are editing this document
+                </div>
+              ) : document.is_locked_by_other ? (
+                <div className="flex items-center gap-2 text-amber-600">
+                  <Lock className="size-3.5" />
+                  <span>
+                    Locked by{" "}
+                    <UserPill name={document.editing_user?.name} email={document.editing_user?.email} />
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Lock className="size-3.5" />
+                  No active lock
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Uploaded by</span>
+                {document.user || document.uploaded_by ? (
+                  <UserPill name={(document.user || document.uploaded_by!)?.name} email={(document.user || document.uploaded_by!)?.email} />
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {timeline.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Zap className="size-4 text-muted-foreground" />
+                Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="max-h-64 space-y-3 overflow-y-auto">
+              {timeline.slice(0, 20).map((entry, i) => (
+                <div key={entry.id ?? i} className="flex items-start gap-3 text-sm">
+                  <div className="mt-1 size-2 shrink-0 rounded-full bg-border" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{entry.action}</span>
+                      <span className="text-xs text-muted-foreground">
+                         <RelativeTime iso={entry.created_at} />
+                      </span>
                     </div>
+                    {entry.user && (
+                      <span className="text-xs text-muted-foreground">
+                         by <UserPill name={entry.user?.name} email={entry.user?.email} />
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

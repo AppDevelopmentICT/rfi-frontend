@@ -14,6 +14,7 @@ import {
 export function useReadExcelMutation() {
   return useMutation<UploadRfiResponse, Error, File>({
     mutationFn: uploadAndReadExcel,
+    retry: false,
     onError: () => {
       toast.error("Failed to read Excel file. Please try again.");
     },
@@ -31,6 +32,7 @@ export function useAutoFillMutation() {
   return useMutation<AutoFillResult, Error, AutoFillParams>({
     mutationFn: ({ file, options }) =>
       autoFillExcel(file, options),
+    retry: false,
     onSuccess: (result, variables) => {
       useRFIStore.getState().addJob({
         id: result.documentId,
@@ -57,6 +59,7 @@ export function useUpdateCellMutation() {
   return useMutation<void, Error, UpdateCellParams>({
     mutationFn: ({ documentId, sheet, rowIdx, column, value }) =>
       updateRfiCell(documentId, sheet, rowIdx, column, value),
+    retry: false,
     onError: () => {
       toast.error("Failed to update cell.");
     },
@@ -74,6 +77,7 @@ export function useRegenerateRfiRowMutation() {
   return useMutation<RegenerateRowResult, Error, RegenerateRowParams>({
     mutationFn: ({ documentId, sheet, rowIdx, currentRow }) =>
       regenerateRfiRow(documentId, sheet, rowIdx, currentRow),
+    retry: false,
     onError: () => {
       toast.error("Failed to regenerate answer.");
     },

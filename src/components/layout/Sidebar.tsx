@@ -32,8 +32,9 @@ import { logCustomEvent } from "@/services/dashboard.service";
 import { getRfiDocument } from "@/services/rfi.service";
 import { useRFIStore } from "@/store/useRFIStore";
 import { useExcelStore } from "@/store/useExcelStore";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { pb } from "@/lib/pocketbase";
 
 interface SidebarProps {
   onClose: () => void;
@@ -61,29 +62,58 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
   const removeJob = useRFIStore((s) => s.removeJob);
 
   useEffect(() => {
-    const active = activeJobs.filter((j) => j.status === "generating");
-    if (active.length === 0) return;
+    let stopped = false;
+    let inFlight = false;
+    const seenFailed = new Set<string>();
 
     const interval = setInterval(async () => {
+      if (stopped || inFlight) return;
+      const active = useRFIStore.getState().activeJobs.filter((j) => j.status === "generating");
+      if (active.length === 0) return;
+
+      inFlight = true;
       for (const job of active) {
+        if (stopped || seenFailed.has(job.id)) continue;
         try {
           const doc = await getRfiDocument(job.id);
+          if (stopped) break;
           if (doc.status === "completed") {
-            updateJob(job.id, "completed");
+            useRFIStore.getState().updateJob(job.id, "completed");
             if (doc.excelData) {
               useExcelStore.getState().setExcelData(doc.excelData);
             }
             toast.success(`RFI Generation completed: ${job.filename}`);
           } else if (doc.status === "failed") {
-            updateJob(job.id, "failed");
+            useRFIStore.getState().updateJob(job.id, "failed");
+            seenFailed.add(job.id);
             toast.error(`RFI Generation failed: ${job.filename}`);
           }
-        } catch {}
+        } catch (e: unknown) {
+          const status =
+            e && typeof e === "object" && "response" in e
+              ? (e as { response?: { status?: number } }).response?.status
+              : undefined;
+          if (status === 401) {
+            stopped = true;
+            console.warn("[Sidebar] 401 — stopping job polling, clearing auth");
+            pb.authStore.clear();
+            break;
+          }
+          if (status === 403) {
+            seenFailed.add(job.id);
+          }
+        }
       }
+      inFlight = false;
     }, 5000);
 
-    return () => clearInterval(interval);
-  }, [activeJobs, updateJob]);
+    console.debug("[Polling:sidebar] started interval=5000ms");
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      console.debug("[Polling:sidebar] cleanup");
+    };
+  }, []);
 
   const isAdmin = !!user?.is_admin;
 
