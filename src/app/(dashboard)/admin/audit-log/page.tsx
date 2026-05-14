@@ -1,12 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Download,
+  Search,
+  X,
+} from "lucide-react";
 
 import { ExactTime } from "@/components/shared/RelativeTime";
 import { UserPill } from "@/components/shared/UserPill";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -22,23 +30,15 @@ import {
   listAdminUsers,
   listAuditFilterOptions,
   listAuditLogs,
-  type AdminAuditLog,
   type AuditFilterOptions,
 } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
+import { formatAuditActionTitle, formatAuditResourceType } from "@/lib/audit-labels";
 
-
-function normalizeAction(action: string): string {
-  return action
-    .replace(/^rfi\./, "")
-    .replace(/^admin\./, "")
-    .replace(/\./g, "_")
-    .replace(/([a-z])([A-Z])/g, "$1_$2")
-    .toLowerCase();
-}
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 export default function AdminAuditLogPage() {
-  const [users, setUsers] = useState<RFIUser[]>([]);
+  const [allUsers, setAllUsers] = useState<RFIUser[]>([]);
   const [options, setOptions] = useState<AuditFilterOptions>({
     actions: [],
     resource_types: [],
@@ -49,12 +49,20 @@ export default function AdminAuditLogPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [detailOpen, setDetailOpen] = useState<number | null>(null);
 
   const closeDetail = useCallback(() => setDetailOpen(null), []);
-  const pageSize = 25;
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setDebouncedQ(q);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [q]);
 
   const params = useMemo(
     () => ({
@@ -63,31 +71,33 @@ export default function AdminAuditLogPage() {
       resource_type: resourceType || undefined,
       date_from: dateFrom ? new Date(dateFrom).toISOString() : undefined,
       date_to: dateTo ? new Date(dateTo).toISOString() : undefined,
-      q: q || undefined,
+      q: debouncedQ || undefined,
       page,
       page_size: pageSize,
     }),
-    [action, dateFrom, dateTo, page, q, resourceType, userId]
+    [action, dateFrom, dateTo, page, pageSize, debouncedQ, resourceType, userId]
   );
 
   const fetchKey = `admin-audit-${JSON.stringify(params)}`;
-  const { data: auditData, isLoading, refetch } = useFetchOnNavigation(
+  const { data: auditData, isLoading } = useFetchOnNavigation(
     fetchKey,
     () => listAuditLogs(params)
   );
 
   const logs = auditData?.items ?? [];
+  const total = auditData?.total ?? 0;
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, total);
 
   useEffect(() => {
-    if (auditData?.total !== undefined) {
-      setTotal(auditData.total);
-    }
-  }, [auditData?.total]);
-
-  useEffect(() => {
-    Promise.all([listAdminUsers(), listAuditFilterOptions()])
+    Promise.all([
+      listAdminUsers({ page_size: 500 }),
+      listAuditFilterOptions(),
+    ])
       .then(([usersData, optionsData]) => {
-        setUsers(usersData);
+        setAllUsers(usersData.items);
         setOptions(optionsData);
       })
       .catch(() => {});
@@ -97,13 +107,26 @@ export default function AdminAuditLogPage() {
     const rows = logs.map((log) => ({
       created_at: log.created_at,
       user: log.user?.email || "",
-      action: log.action,
-      resource_type: log.resource_type,
+      action: formatAuditActionTitle(log.action),
+      action_key: log.action,
+      resource_type: formatAuditResourceType(log.resource_type),
+      resource_type_key: log.resource_type,
       ip_address: log.ip_address || "",
       details: JSON.stringify(log.details || {}),
     }));
     const csv = [
-      Object.keys(rows[0] || { created_at: "", user: "", action: "", resource_type: "", ip_address: "", details: "" }).join(","),
+      Object.keys(
+        rows[0] || {
+          created_at: "",
+          user: "",
+          action: "",
+          action_key: "",
+          resource_type: "",
+          resource_type_key: "",
+          ip_address: "",
+          details: "",
+        }
+      ).join(","),
       ...rows.map((row) =>
         Object.values(row)
           .map((value) => `"${String(value).replace(/"/g, '""')}"`)
@@ -135,26 +158,42 @@ export default function AdminAuditLogPage() {
       </div>
 
       <Card className="border-border/70 shadow-sm">
+        <CardHeader className="space-y-0 border-b py-3 px-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base font-semibold">Activity Feed</CardTitle>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="h-8 rounded-lg border bg-background px-3 text-sm"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n} / page
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardHeader>
+
         <CardContent className="space-y-4 p-4">
+          {/* Filters */}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <Input
-              value={q}
-              onChange={(event) => {
-                setPage(1);
-                setQ(event.target.value);
-              }}
-              placeholder="Search action, resource, IP..."
-            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search action, resource, IP…"
+                className="pl-8"
+              />
+            </div>
             <select
               value={userId}
-              onChange={(event) => {
-                setPage(1);
-                setUserId(event.target.value);
-              }}
+              onChange={(e) => setUserId(e.target.value)}
               className="h-8 rounded-lg border bg-background px-3 text-sm"
             >
               <option value="">All users</option>
-              {users.map((user) => (
+              {allUsers.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.name || user.email}
                 </option>
@@ -162,31 +201,25 @@ export default function AdminAuditLogPage() {
             </select>
             <select
               value={action}
-              onChange={(event) => {
-                setPage(1);
-                setAction(event.target.value);
-              }}
+              onChange={(e) => setAction(e.target.value)}
               className="h-8 rounded-lg border bg-background px-3 text-sm"
             >
               <option value="">All actions</option>
               {options.actions.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {formatAuditActionTitle(item)}
                 </option>
               ))}
             </select>
             <select
               value={resourceType}
-              onChange={(event) => {
-                setPage(1);
-                setResourceType(event.target.value);
-              }}
+              onChange={(e) => setResourceType(e.target.value)}
               className="h-8 rounded-lg border bg-background px-3 text-sm"
             >
               <option value="">All resources</option>
               {options.resource_types.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {formatAuditResourceType(item)}
                 </option>
               ))}
             </select>
@@ -256,11 +289,21 @@ export default function AdminAuditLogPage() {
                         <UserPill name={log.user?.name} email={log.user?.email} />
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex h-5 items-center rounded-md border border-border/60 bg-background px-2 text-[11px] font-medium text-muted-foreground">
-                          {normalizeAction(log.action)}
+                        <div className="flex min-w-0 max-w-[220px] flex-col gap-0.5">
+                          <span className="truncate text-sm font-semibold leading-tight text-foreground">
+                            {formatAuditActionTitle(log.action)}
+                          </span>
+                          <span className="truncate font-mono text-[11px] text-muted-foreground">
+                            {log.action}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <span className="block truncate font-medium">{formatAuditResourceType(log.resource_type)}</span>
+                        <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                          {log.resource_type}
                         </span>
                       </TableCell>
-                      <TableCell>{log.resource_type}</TableCell>
                       <TableCell className="max-w-[280px]">
                         <button
                           type="button"
@@ -276,26 +319,51 @@ export default function AdminAuditLogPage() {
                   ))}
                 </TableBody>
               </Table>
+
+              {/* Pagination footer */}
               <div className="flex items-center justify-between pt-2 text-sm text-muted-foreground">
                 <span>
-                  Showing {logs.length} of {total}
+                  Showing {startItem}–{endItem} of {total} entr{total !== 1 ? "ies" : "y"}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-1">
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon-sm"
                     disabled={page <= 1}
-                    onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                    onClick={() => setPage(1)}
+                    title="First page"
                   >
-                    Previous
+                    <ChevronsLeft className="size-4" />
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
-                    disabled={page * pageSize >= total}
-                    onClick={() => setPage((current) => current + 1)}
+                    size="icon-sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                    title="Previous page"
                   >
-                    Next
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <span className="px-3 font-medium tabular-nums">
+                    {page} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                    title="Next page"
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(totalPages)}
+                    title="Last page"
+                  >
+                    <ChevronsRight className="size-4" />
                   </Button>
                 </div>
               </div>

@@ -26,8 +26,15 @@ export interface AuditFilterOptions {
   resource_types: string[];
 }
 
-export async function listAdminUsers(): Promise<RFIUser[]> {
-  const { data } = await apiClient.get<RFIUser[]>("/v1/admin/users");
+export interface AdminUsersResponse {
+  items: RFIUser[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+export async function listAdminUsers(params: Record<string, string | number | boolean | undefined> = {}): Promise<AdminUsersResponse> {
+  const { data } = await apiClient.get<AdminUsersResponse>("/v1/admin/users", { params });
   return data;
 }
 

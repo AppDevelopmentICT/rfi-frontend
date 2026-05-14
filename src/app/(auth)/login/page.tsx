@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+import { isAxiosError } from "axios";
+
 import { apiClient } from "@/lib/axios";
 import { pb } from "@/lib/pocketbase";
 import { ClientResponseError } from "pocketbase";
@@ -103,8 +105,16 @@ export default function LoginPage() {
       }
       router.push("/");
       router.refresh();
-    } catch (err: any) {
-      const msg = err.response?.data?.error?.message || "Please check your email and password.";
+    } catch (err: unknown) {
+      const msg =
+        isAxiosError(err) &&
+        err.response?.data &&
+        typeof err.response.data === "object" &&
+        err.response.data !== null &&
+        "error" in err.response.data &&
+        typeof (err.response.data as { error?: { message?: string } }).error?.message === "string"
+          ? (err.response.data as { error: { message: string } }).error.message
+          : "Please check your email and password.";
       toast.error("Sign in failed", { description: msg });
       pb.authStore.clear();
     } finally {

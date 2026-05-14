@@ -14,18 +14,18 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  getDashboardHistory,
-  getDashboardStats,
-  type AuditLogEntry,
-  type DashboardStats,
-} from "@/services/dashboard.service";
+import { getDashboardHistory, getDashboardStats } from "@/services/dashboard.service";
 import {
   exportRfiExcel,
-  listMyRfiDocuments,
+  listRfiDocuments,
   softDeleteRfiDocument,
   type RFIProjectResponse,
 } from "@/services/rfi.service";
+import {
+  listRfiPdfs,
+  softDeleteRfiPdf,
+  type RFIPdfProjectResponse,
+} from "@/services/rfi-pdf.service";
 import {
   listMyRfpProjects,
   softDeleteRfpProject,
@@ -48,6 +48,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ActionButtons } from "@/components/shared/ActionButtons";
 import { cn } from "@/lib/utils";
+import { formatAuditActionTitle } from "@/lib/audit-labels";
 import { useStaleData } from "@/hooks/useStaleData";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -76,7 +77,8 @@ export default function HomePage() {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const refetch = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["dashboard-rfi"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-rfi-excel"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-rfi-pdf"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard-rfp"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard-history"] });
@@ -96,17 +98,35 @@ export default function HomePage() {
     () => getDashboardHistory(20).catch(() => [])
   );
 
-  const { data: rfiDocs = [], isLoading: rfiLoading, refetch: refetchRfi } = useStaleData(
-    "dashboard-rfi",
-    () => listMyRfiDocuments().catch(() => [])
+  const { data: rawRfiDocs = [], isLoading: rfiLoading } = useStaleData(
+    "dashboard-rfi-excel",
+    () => listRfiDocuments().catch(() => [])
   );
 
-  const { data: rfpDocs = [], refetch: refetchRfp } = useStaleData(
+  const { data: pdfDocs = [], isLoading: pdfLoading } = useStaleData(
+    "dashboard-rfi-pdf",
+    () => listRfiPdfs().catch(() => [])
+  );
+
+  const rfiCombined = useMemo(() => {
+    const combined = [
+      ...rawRfiDocs.map((d) => ({ ...d, type: "excel" as const })),
+      ...pdfDocs.map((d) => ({ ...d, type: "pdf" as const })),
+    ];
+    combined.sort((a, b) => {
+      const ta = new Date(a.updated_at || a.created_at || 0).getTime();
+      const tb = new Date(b.updated_at || b.created_at || 0).getTime();
+      return tb - ta;
+    });
+    return combined;
+  }, [rawRfiDocs, pdfDocs]);
+
+  const { data: rfpDocs = [] } = useStaleData(
     "dashboard-rfp",
     () => listMyRfpProjects().catch(() => [])
   );
 
-  const isLoading = statsLoading || historyLoading || rfiLoading;
+  const isLoading = statsLoading || historyLoading || rfiLoading || pdfLoading;
 
   const sortedHistory = useMemo(
     () =>
@@ -116,16 +136,20 @@ export default function HomePage() {
     [history]
   );
 
-  const handleDeleteRfi = async (doc: RFIProjectResponse) => {
+  const handleDeleteRfi = async (doc: any) => {
     if (
       !window.confirm(
         `Move "${doc.fileName}" to Trash? Admins can restore it later.`
       )
     )
       return;
-    setPendingDelete(`rfi:${doc.documentId}`);
+    setPendingDelete(`${doc.type}:${doc.documentId}`);
     try {
-      await softDeleteRfiDocument(doc.documentId);
+      if (doc.type === "pdf") {
+        await softDeleteRfiPdf(doc.documentId);
+      } else {
+        await softDeleteRfiDocument(doc.documentId);
+      }
       toast.success("Moved to Trash");
       refetch();
     } catch (err) {
@@ -213,7 +237,7 @@ export default function HomePage() {
               ) : (
                 <FileText className="size-5" />
               )}
-              My Generated {tab === "rfi" ? "RFI" : "RFP"}
+              Generated {tab === "rfi" ? "RFI" : "RFP"}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Button
@@ -224,7 +248,7 @@ export default function HomePage() {
               >
                 RFI
                 <Badge variant="secondary" className="ml-1">
-                  {rfiDocs.length}
+                  {rfiCombined.length}
                 </Badge>
               </Button>
               <Button
@@ -242,7 +266,7 @@ export default function HomePage() {
           </CardHeader>
           <CardContent className="min-h-0 flex-1 overflow-auto p-0">
             {tab === "rfi" ? (
-              rfiDocs.length === 0 ? (
+              rfiCombined.length === 0 ? (
                 <div className="m-6 rounded-xl border border-dashed p-8 text-center">
                   <p className="font-medium">No generated RFI yet</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -259,24 +283,32 @@ export default function HomePage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Filename</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rfiDocs.map((doc) => {
+                    {rfiCombined.map((doc) => {
                       const deleting =
-                        pendingDelete === `rfi:${doc.documentId}`;
+                        pendingDelete === `${doc.type}:${doc.documentId}`;
                       return (
                         <TableRow key={doc.documentId}>
                           <TableCell className="font-medium">
                             <Link
                               className="hover:underline"
-                              href={`/rfi/${doc.documentId}`}
+                              href={doc.type === "pdf" ? `/rfi-pdf/${doc.documentId}` : `/rfi/${doc.documentId}`}
                             >
                               {doc.fileName}
                             </Link>
+                          </TableCell>
+                          <TableCell>
+                            {doc.type === "pdf" ? (
+                              <Badge variant="secondary" className="bg-blue-100/50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Documents</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-emerald-100/50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Workbook</Badge>
+                            )}
                           </TableCell>
                           <TableCell>
                             <StatusBadge status={doc.status} />
@@ -286,19 +318,21 @@ export default function HomePage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <Link href={`/rfi/${doc.documentId}`}>
+                              <Link href={doc.type === "pdf" ? `/rfi-pdf/${doc.documentId}` : `/rfi/${doc.documentId}`}>
                                 <Button variant="outline" size="sm">
                                   Open
                                 </Button>
                               </Link>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                disabled={doc.status !== "completed"}
-                                onClick={() => exportRfiExcel(doc.documentId)}
-                              >
-                                <Download className="size-4" />
-                              </Button>
+                              {doc.type === "excel" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  disabled={doc.status !== "completed"}
+                                  onClick={() => exportRfiExcel(doc.documentId)}
+                                >
+                                  <Download className="size-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
@@ -432,7 +466,9 @@ export default function HomePage() {
                       className="flex items-center gap-3 rounded-lg border bg-card/50 p-3"
                     >
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60">
-                        {isUpload ? (
+                        {isUpload && log.resource_type === "rfi_pdf_project" ? (
+                          <FileText className="size-4 text-slate-500 dark:text-slate-400" />
+                        ) : isUpload ? (
                           <FileSpreadsheet className="size-4 text-slate-500 dark:text-slate-400" />
                         ) : isGenerate ? (
                           <Sparkles className="size-4 text-slate-500 dark:text-slate-400" />
@@ -445,18 +481,23 @@ export default function HomePage() {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {(log.details?.filename as string | undefined) ||
-                            (log.details?.project_name as string | undefined) ||
-                            log.action
-                              .replace("rfi.", "RFI ")
-                              .replace("rfp.", "RFP ")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {log.action
-                            .replace("rfi.", "")
-                            .replace("rfp.", "")
-                            .replace(/_/g, " ")}
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-medium">
+                            {(log.details?.filename as string | undefined) ||
+                              (log.details?.project_name as string | undefined) ||
+                              formatAuditActionTitle(log.action)}
+                          </p>
+                          {log.resource_type === "rfi_pdf_project" && (
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 bg-blue-100/50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                              Documents
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground/85">
+                            {formatAuditActionTitle(log.action)}
+                          </span>
+                          <span className="font-mono text-muted-foreground"> · {log.action}</span>
                         </p>
                       </div>
                       <RelativeTime

@@ -14,7 +14,6 @@ export function useRealtimePolling<TData = unknown>(
 ) {
   const { enabled = true, intervalMs = 5000, onNewData } = options;
   const [data, setData] = useState<TData | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
@@ -32,21 +31,23 @@ export function useRealtimePolling<TData = unknown>(
 
   useEffect(() => {
     isMountedRef.current = true;
+    let rafId = 0;
 
     if (enabled) {
-      setIsPolling(true);
-      poll();
+      rafId = requestAnimationFrame(() => {
+        void poll();
+      });
       intervalRef.current = setInterval(poll, intervalMs);
     }
 
     return () => {
       isMountedRef.current = false;
+      if (rafId) cancelAnimationFrame(rafId);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
-      setIsPolling(false);
     };
   }, [enabled, intervalMs, poll]);
 
-  return { data, isPolling };
+  return { data, isPolling: enabled };
 }

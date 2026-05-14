@@ -2,7 +2,6 @@
 
 import { Sparkles, Loader2, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 interface ExcelTableHeaderProps {
   fileName: string;

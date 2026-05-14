@@ -2,7 +2,6 @@
 
 import { useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 
 export function useStaleData<TData = unknown>(
   key: string,

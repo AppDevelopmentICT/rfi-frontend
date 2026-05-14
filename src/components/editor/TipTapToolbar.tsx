@@ -51,29 +51,29 @@ function ToolbarButton({
   tooltip: string;
   size?: "sm" | "xs";
 }) {
-  const btn = (
-    <Button
-      variant="ghost"
-      size={size === "xs" ? "icon" : "icon"}
-      disabled={disabled}
-      onClick={(e) => {
-        e.preventDefault();
-        onClick();
-      }}
-      className={cn(
-        "size-8 rounded-md font-normal transition-all",
-        "hover:bg-accent hover:text-accent-foreground",
-        isActive && "bg-accent text-accent-foreground shadow-sm",
-        disabled && "opacity-40 hover:bg-transparent hover:text-muted-foreground",
-      )}
-    >
-      {children}
-    </Button>
-  );
-
   return (
     <Tooltip>
-      <TooltipTrigger>{btn}</TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size={size === "xs" ? "icon" : "icon"}
+            disabled={disabled}
+            onClick={(e) => {
+              e.preventDefault();
+              onClick();
+            }}
+            className={cn(
+              "size-8 rounded-md font-normal transition-all",
+              "hover:bg-accent hover:text-accent-foreground",
+              isActive && "bg-accent text-accent-foreground shadow-sm",
+              disabled && "opacity-40 hover:bg-transparent hover:text-muted-foreground",
+            )}
+          >
+            {children}
+          </Button>
+        }
+      />
       <TooltipContent side="bottom" className="text-xs font-medium">
         {tooltip}
       </TooltipContent>

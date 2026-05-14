@@ -1,4 +1,4 @@
-import { Database, Folders, Clock, type LucideIcon } from "lucide-react";
+import { Database, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   title: string;

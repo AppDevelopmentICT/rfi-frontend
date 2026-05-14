@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertOctagon,
   FileSpreadsheet,
@@ -69,11 +69,11 @@ export default function AdminTrashPage() {
 
   const [trash, setTrash] = useState<AdminTrashResponse>({ rfi: [], rfp: [] });
 
-  // Sync local state with fetched data
+  // Sync local state with fetched data (defer setState out of the synchronous effect body)
   useEffect(() => {
-    if (fetchedTrash.rfi.length || fetchedTrash.rfp.length) {
+    queueMicrotask(() => {
       setTrash(fetchedTrash);
-    }
+    });
   }, [fetchedTrash]);
 
   const isAdmin = !!user?.is_admin;

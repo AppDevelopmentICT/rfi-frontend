@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   FileText,
   FileIcon,
@@ -22,7 +22,6 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -161,7 +160,6 @@ function SortableHeader({
 }
 
 export default function KnowledgeBasePage() {
-  const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
@@ -195,7 +193,7 @@ export default function KnowledgeBasePage() {
     })
   );
 
-  const documents = docsData?.documents ?? [];
+  const documents = useMemo(() => docsData?.documents ?? [], [docsData]);
   const totalPages = docsData?.total_pages ?? 1;
   const totalCount = docsData?.total ?? 0;
 
@@ -263,10 +261,6 @@ export default function KnowledgeBasePage() {
     });
     setPage(1);
   }, []);
-
-  const invalidateDocs = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: [fetchKey] });
-  }, [queryClient, fetchKey]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
