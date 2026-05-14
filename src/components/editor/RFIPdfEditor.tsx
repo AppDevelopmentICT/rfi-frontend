@@ -617,12 +617,12 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
 
   return (
     <div className={cn(
-      "grid h-full min-h-0 gap-4",
-      showSidebar ? "lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]" : "grid-cols-1"
+      "flex h-full min-h-0 gap-3",
+      showSidebar ? "gap-3" : "gap-0"
     )}>
-      <div className="flex min-h-0 min-w-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col border-border/70 shadow-sm">
-          <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 border-b py-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Card className="flex min-h-0 flex-1 flex-col rounded-none border-x-0 border-t-0 border-border/70 shadow-none">
+          <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b px-5 py-2">
             <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileText className="size-4 text-muted-foreground" />
@@ -796,14 +796,14 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
               />
             ) : null}
             {isEditing && (
-              <div className="border-b bg-muted/40 px-5 py-2">
+              <div className="border-b bg-muted/30 px-4 py-1">
                 <TipTapToolbar editor={editor} />
               </div>
             )}
             <div className="flex min-h-0 flex-1 overflow-hidden">
               <div
                 className={cn(
-                  "flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6",
+                  "flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4",
                   showMarkdown ? "border-r" : "",
                 )}
               >
@@ -823,7 +823,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between gap-2 border-t px-5 py-2 text-[11px] text-muted-foreground">
+            <div className="flex items-center justify-between gap-2 border-t px-4 py-1.5 text-[11px] text-muted-foreground">
               <div className="flex items-center gap-3">
                 {editor && (
                   <>
@@ -849,10 +849,12 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
       </div>
       
       {showSidebar && (
+        <div className="flex w-[320px] shrink-0 min-h-0 flex-col">
         <RFIPdfSidebar
           onInsert={handleSidebarInsert}
           disabled={!isEditing || Boolean(project.is_locked_by_other)}
         />
+        </div>
       )}
 
       <Sheet open={showPreview} onOpenChange={setShowPreview}>
@@ -993,10 +995,10 @@ function Banner({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 border-b px-5 py-3 text-sm",
+        "flex items-start gap-2 border-b px-4 py-2 text-sm",
         variant === "error"
           ? "bg-destructive/10 text-destructive"
-          : "bg-muted/40 text-muted-foreground",
+          : "bg-muted/30 text-muted-foreground",
       )}
     >
       <span className="mt-0.5 shrink-0">{icon}</span>

@@ -10,7 +10,7 @@ export default async function RfpEditorPage({ params, searchParams }: RfpEditorP
   const { generate } = await searchParams;
 
   return (
-    <div className="h-full min-h-0 px-6 py-6">
+    <div className="h-full min-h-0">
       <RFPTechnicalEditor rfpId={id} autoGenerate={generate === "1"} />
     </div>
   );

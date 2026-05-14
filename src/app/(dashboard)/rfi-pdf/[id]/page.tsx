@@ -7,7 +7,7 @@ interface RfiPdfPageProps {
 export default async function RfiPdfPage({ params }: RfiPdfPageProps) {
   const { id } = await params;
   return (
-    <div className="h-full min-h-0 px-6 py-6">
+    <div className="h-full min-h-0">
       <RFIPdfEditor documentId={id} />
     </div>
   );

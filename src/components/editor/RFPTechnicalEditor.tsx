@@ -602,15 +602,15 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   return (
     <div
       className={cn(
-        "grid h-full min-h-0 gap-4 transition-[grid-template-columns] duration-300 ease-in-out",
+        "flex h-full min-h-0 transition-[gap] duration-300 ease-in-out",
         isPanelOpen
-          ? "lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]"
-          : "grid-cols-[minmax(0,1fr)]",
+          ? "gap-3"
+          : "gap-0",
       )}
     >
-      <div className="flex min-h-0 min-w-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col border-border/70 shadow-sm">
-          <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 border-b py-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Card className="flex min-h-0 flex-1 flex-col rounded-none border-x-0 border-t-0 border-border/70 shadow-none">
+          <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b px-5 py-2">
             <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileText className="size-4 text-muted-foreground" />
@@ -678,7 +678,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
           </CardHeader>
           <CardContent className="min-h-0 flex flex-1 flex-col overflow-hidden p-0">
             {lockMessage && (
-              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
+              <div className="border-b bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div>
@@ -689,7 +689,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               </div>
             )}
             {isEditing && !project.is_locked_by_other && (
-              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
+              <div className="border-b bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <Unlock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div>
@@ -703,7 +703,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               </div>
             )}
             {warningMessage && (
-              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
+              <div className="border-b bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div>
@@ -714,7 +714,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               </div>
             )}
             {stream.isStreaming && (
-              <div className="border-b bg-muted/40 px-5 py-3 text-sm text-muted-foreground">
+              <div className="border-b bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Sparkles className="size-4 animate-pulse text-muted-foreground" />
                   <span className="font-semibold text-foreground">
@@ -729,11 +729,11 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               </div>
             )}
             {isEditing && !stream.isStreaming && (
-              <div className="border-b bg-muted/40 px-5 py-2">
+              <div className="border-b bg-muted/30 px-4 py-1">
                 <TipTapToolbar editor={editor} />
               </div>
             )}
-            <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
               {stream.isStreaming ? (
                 <div
                   ref={streamingContainerRef}
@@ -745,7 +745,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               )}
             </div>
             {isEditing && editor && (
-              <div className="border-t px-5 py-2">
+              <div className="border-t px-4 py-1.5">
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-3">
                     <span>{editor.storage.characterCount.characters()} characters</span>
@@ -766,10 +766,10 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
 
       {isPanelOpen && (
       <div
-        className="flex min-h-0 flex-col gap-3 animate-in fade-in slide-in-from-right-2 duration-300"
+        className="flex w-[320px] shrink-0 min-h-0 flex-col gap-3 animate-in fade-in slide-in-from-right-2 duration-300"
       >
         <Collapsible open={isChatOpen} onOpenChange={setIsChatOpen} className="flex h-[56vh] min-h-[420px] max-h-[62vh] flex-col rounded-lg border border-border/70 bg-card shadow-sm">
-          <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/30">
+          <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-3 py-2 text-left transition-colors hover:bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-base">
               <MessageSquare className="size-4 text-muted-foreground" />
               Chat
@@ -906,7 +906,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
           onOpenChange={setIsTimelineAccordionOpen}
           className="flex min-h-0 flex-1 flex-col rounded-lg border border-border/70 bg-card shadow-sm"
         >
-          <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/30">
+          <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-3 py-2 text-left transition-colors hover:bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-base">
               <Sparkles className="size-4 text-muted-foreground" />
               RFP Timeline
