@@ -14,6 +14,7 @@ import {
   Save,
   ShieldAlert,
   Sparkles,
+  Square,
   Unlock,
   X,
   PanelRightClose,
@@ -40,12 +41,7 @@ import { RFIPdfSidebar, type SidebarEntity } from "./RFIPdfSidebar";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -53,7 +49,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { UserPill } from "@/components/shared/UserPill";
@@ -70,6 +70,7 @@ import {
   lockRfiPdf,
   regenerateRfiPdfDraft,
   saveRfiPdf,
+  stopRfiPdfGeneration,
   unlockRfiPdf,
   type RFIPdfEntityRef,
   type RFIPdfProjectResponse,
@@ -103,24 +104,26 @@ function getErrorMessage(error: unknown, fallback: string) {
     typeof error === "object" &&
     error !== null &&
     "response" in error &&
-    typeof (error as { response?: { data?: { error?: { message?: string }; detail?: string } } })
-      .response?.data?.detail === "string"
+    typeof (
+      error as {
+        response?: { data?: { error?: { message?: string }; detail?: string } };
+      }
+    ).response?.data?.detail === "string"
   ) {
     return String(
-      (error as { response: { data: { detail: string } } }).response.data.detail,
+      (error as { response: { data: { detail: string } } }).response.data.detail
     );
   }
   if (
     typeof error === "object" &&
     error !== null &&
     "response" in error &&
-    typeof (
-      error as { response?: { data?: { error?: { message?: string } } } }
-    ).response?.data?.error?.message === "string"
+    typeof (error as { response?: { data?: { error?: { message?: string } } } })
+      .response?.data?.error?.message === "string"
   ) {
     return String(
       (error as { response: { data: { error: { message: string } } } }).response
-        .data.error.message,
+        .data.error.message
     );
   }
   return fallback;
@@ -143,6 +146,8 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
   const [showTimeline, setShowTimeline] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [isEnteringEdit, setIsEnteringEdit] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [entityRefs, setEntityRefs] = useState<RFIPdfEntityRef[]>([]);
 
   const projectRef = useRef<RFIPdfProjectResponse | null>(null);
@@ -153,7 +158,11 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
   const editorRef = useRef<Editor | null>(null);
   const isDirtyRef = useRef(false);
   const lastMarkdownRef = useRef("");
-  const onDropEntityRef = useRef<((entity: SidebarEntity) => void) | null>(null);
+  const onDropEntityRef = useRef<((entity: SidebarEntity) => void) | null>(
+    null
+  );
+  const wsRef = useRef<WebSocket | null>(null);
+  const regenAbortRef = useRef<AbortController | null>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -179,7 +188,10 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
         },
       }),
       CharacterCount.configure({ limit: 200_000 }),
-      Table.configure({ resizable: true, HTMLAttributes: { class: "rfi-pdf-table" } }),
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: { class: "rfi-pdf-table" },
+      }),
       TableRow,
       TableHeader,
       TableCell,
@@ -262,7 +274,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
         if (!silent) setLoading(false);
       }
     },
-    [documentId, editor],
+    [documentId, editor]
   );
 
   useEffect(() => {
@@ -294,7 +306,33 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
     const token = pb.authStore.token || "";
     let cleanupClose = false;
     let wsTerminal = false;
+    let rafId: number | null = null;
+    let rafPending = false;
     const ws = new WebSocket(buildRfiPdfDraftStreamUrl(documentId, token));
+    wsRef.current = ws;
+
+    /** Flush accumulated markdown into the editor — called at most once per frame. */
+    const flushToEditor = () => {
+      rafPending = false;
+      rafId = null;
+      const ed = editorRef.current;
+      if (ed) {
+        editorHydratingRef.current = true;
+        ed.commands.setContent(markdownToHtml(acc), {
+          emitUpdate: false,
+        });
+        editorHydratingRef.current = false;
+      }
+      setMarkdownSource(acc);
+    };
+
+    /** Schedule a single editor update on the next animation frame. */
+    const scheduleFlush = () => {
+      if (!rafPending) {
+        rafPending = true;
+        rafId = requestAnimationFrame(flushToEditor);
+      }
+    };
 
     ws.onmessage = (evt) => {
       try {
@@ -312,27 +350,32 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
             if (typeof data.delta !== "string") break;
             acc += data.delta;
             streamingHydrateBlockedRef.current = true;
-            {
-              const ed = editorRef.current;
-              if (ed) {
-                editorHydratingRef.current = true;
-                ed.commands.setContent(markdownToHtml(acc), { emitUpdate: false });
-                editorHydratingRef.current = false;
-              }
-              setMarkdownSource(acc);
-            }
+            scheduleFlush();
             break;
           case "draft_complete":
           case "already_complete":
             wsTerminal = true;
             streamingHydrateBlockedRef.current = false;
+            // Flush any remaining buffered content immediately
+            if (rafPending && rafId != null) {
+              cancelAnimationFrame(rafId);
+              flushToEditor();
+            }
             void refresh(true);
             break;
           case "draft_error":
           case "already_failed":
             wsTerminal = true;
             streamingHydrateBlockedRef.current = false;
-            toast.error(typeof data.message === "string" ? data.message : "Draft generation failed");
+            if (rafPending && rafId != null) {
+              cancelAnimationFrame(rafId);
+              flushToEditor();
+            }
+            toast.error(
+              typeof data.message === "string"
+                ? data.message
+                : "Draft generation failed"
+            );
             void refresh(true);
             break;
           default:
@@ -345,6 +388,11 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
 
     ws.onclose = () => {
       streamingHydrateBlockedRef.current = false;
+      wsRef.current = null;
+      if (rafPending && rafId != null) {
+        cancelAnimationFrame(rafId);
+        flushToEditor();
+      }
       const st = projectRef.current?.status;
       if (
         !cleanupClose &&
@@ -359,7 +407,9 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
     return () => {
       cleanupClose = true;
       streamingHydrateBlockedRef.current = false;
+      if (rafId != null) cancelAnimationFrame(rafId);
       ws.close();
+      wsRef.current = null;
     };
   }, [documentId, project?.status, refresh]);
 
@@ -376,6 +426,8 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
+      regenAbortRef.current?.abort();
+      wsRef.current?.close();
     };
   }, [previewUrl]);
 
@@ -391,15 +443,30 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
   }, [documentId]);
 
   const handleBeginEdit = useCallback(async () => {
+    setIsEnteringEdit(true);
     try {
       await ensureLock();
       toast.success("Edit lock acquired");
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Could not acquire edit lock"));
+    } finally {
+      setIsEnteringEdit(false);
     }
   }, [ensureLock]);
 
   const handleCancelEdit = useCallback(async () => {
+    setIsCancelling(true);
+    const savedMarkdown = lastMarkdownRef.current;
+    if (editor) {
+      editorHydratingRef.current = true;
+      const html =
+        projectRef.current?.editor_html ||
+        markdownToHtml(projectRef.current?.editor_markdown || "");
+      editor.commands.setContent(html, { emitUpdate: false });
+      editorHydratingRef.current = false;
+    }
+    isDirtyRef.current = false;
+    setIsDirty(false);
     try {
       const released = await unlockRfiPdf(documentId);
       projectRef.current = released;
@@ -415,12 +482,19 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
         lastMarkdownRef.current = released.editor_markdown || "";
         setMarkdownSource(released.editor_markdown || "");
       }
-      isDirtyRef.current = false;
-      setIsDirty(false);
       setIsEditing(false);
       toast.success("Edit cancelled");
     } catch (err: unknown) {
+      if (editor) {
+        editorHydratingRef.current = true;
+        editor.commands.setContent(markdownToHtml(savedMarkdown), {
+          emitUpdate: false,
+        });
+        editorHydratingRef.current = false;
+      }
       toast.error(getErrorMessage(err, "Could not release the edit lock"));
+    } finally {
+      setIsCancelling(false);
     }
   }, [documentId, editor]);
 
@@ -464,6 +538,9 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
 
   const handleRegenerate = useCallback(async () => {
     if (!project) return;
+    regenAbortRef.current?.abort();
+    const controller = new AbortController();
+    regenAbortRef.current = controller;
     setRegenerating(true);
     try {
       const updated = await regenerateRfiPdfDraft(documentId, {});
@@ -471,18 +548,45 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
       setProject(updated);
       toast.success("Regeneration started. The draft will refresh shortly.");
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Could not start regeneration"));
+      if (err instanceof Error && err.name === "AbortError") {
+        // cancelled by user — do not show error
+      } else {
+        toast.error(getErrorMessage(err, "Could not start regeneration"));
+      }
     } finally {
       setRegenerating(false);
+      regenAbortRef.current = null;
     }
   }, [documentId, project]);
+
+  const handleStopGeneration = useCallback(async () => {
+    // Signal the backend to cancel the LLM stream
+    try {
+      const updated = await stopRfiPdfGeneration(documentId);
+      projectRef.current = updated;
+      setProject(updated);
+    } catch {
+      // Even if the backend call fails, still clean up client-side
+    }
+    wsRef.current?.close();
+    wsRef.current = null;
+    regenAbortRef.current?.abort();
+    regenAbortRef.current = null;
+    setRegenerating(false);
+    streamingHydrateBlockedRef.current = false;
+    toast.info("Generation stopped. Partial content kept.", { duration: 3000 });
+  }, [documentId]);
 
   const refreshPreview = useCallback(async () => {
     setPreviewLoading(true);
     setPreviewError(null);
     try {
       // Persist the latest markdown so the preview matches what is on disk.
-      if (editor && projectRef.current?.is_lock_held_by_me && isDirtyRef.current) {
+      if (
+        editor &&
+        projectRef.current?.is_lock_held_by_me &&
+        isDirtyRef.current
+      ) {
         await handleSave();
       }
       const blob = await getRfiPdfPreview(documentId);
@@ -511,7 +615,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
       }
       await exportRfiPdf(
         documentId,
-        `${project.slug || `rfi-${project.id}`}_response.pdf`,
+        `${project.slug || `rfi-${project.id}`}_response.pdf`
       );
       toast.success("PDF exported");
     } catch (err: unknown) {
@@ -540,14 +644,13 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
       editor
         .chain()
         .focus()
-        .insertContent(insertion, { parseOptions: { preserveWhitespace: true } })
+        .insertContent(insertion, {
+          parseOptions: { preserveWhitespace: true },
+        })
         .run();
       const ref: RFIPdfEntityRef = {
         type: entity.type,
-        refId:
-          entity.type === "project"
-            ? entity.data.id
-            : entity.data.id,
+        refId: entity.type === "project" ? entity.data.id : entity.data.id,
         label:
           entity.type === "project"
             ? entity.data.name
@@ -562,12 +665,12 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
         toast.error("Insertion failed");
       }
     },
-    [editor, isEditing],
+    [editor, isEditing]
   );
 
   const handleSidebarInsert = useCallback(
     (entity: SidebarEntity) => insertEntityRef(entity),
-    [insertEntityRef],
+    [insertEntityRef]
   );
 
   useEffect(() => {
@@ -588,10 +691,11 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
   };
 
   const isBusy = saving || regenerating;
-  const isPipelineActive = !!project && ACTIVE_PIPELINE_STATUSES.has(project.status);
+  const isPipelineActive =
+    !!project && ACTIVE_PIPELINE_STATUSES.has(project.status);
   const pipelineStatus = useMemo(
     () => (project ? project.status : "loading"),
-    [project],
+    [project]
   );
 
   if (loading) {
@@ -612,14 +716,20 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
   }
 
   const lockMessage = project.is_locked_by_other
-    ? `${project.editing_user?.name || project.editing_user?.email || "Another user"} is editing this RFI.`
+    ? `${
+        project.editing_user?.name ||
+        project.editing_user?.email ||
+        "Another user"
+      } is editing this RFI.`
     : null;
 
   return (
-    <div className={cn(
-      "flex h-full min-h-0 gap-3",
-      showSidebar ? "gap-3" : "gap-0"
-    )}>
+    <div
+      className={cn(
+        "flex h-full min-h-0 gap-3",
+        showSidebar ? "gap-3" : "gap-0"
+      )}
+    >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Card className="flex min-h-0 flex-1 flex-col rounded-none border-x-0 border-t-0 border-border/70 shadow-none">
           <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b px-5 py-2">
@@ -632,7 +742,10 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                 <StatusBadge status={pipelineStatus} />
               </CardTitle>
               <p className="mt-1 truncate text-xs text-muted-foreground">
-                Source: <span className="font-medium text-foreground">{project.fileName}</span>
+                Source:{" "}
+                <span className="font-medium text-foreground">
+                  {project.fileName}
+                </span>
                 {project.updated_at && (
                   <>
                     {" · "}Updated{" "}
@@ -667,7 +780,11 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                       onClick={() => setShowSidebar((v) => !v)}
                       aria-pressed={showSidebar}
                     >
-                      {showSidebar ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
+                      {showSidebar ? (
+                        <PanelRightClose className="size-4" />
+                      ) : (
+                        <PanelRightOpen className="size-4" />
+                      )}
                       {showSidebar ? "Hide insert data" : "Insert data"}
                     </Button>
                   }
@@ -687,37 +804,52 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleExport}
-                disabled={isBusy || (!project.editor_markdown && !project.editor_html)}
+                disabled={
+                  isBusy || (!project.editor_markdown && !project.editor_html)
+                }
               >
                 <Download className="size-4" />
                 Export PDF
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRegenerate}
-                disabled={isBusy || isPipelineActive || !project.parsed_markdown}
-              >
-                {regenerating ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
+              {isPipelineActive || regenerating ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleStopGeneration}
+                  className="gap-1.5"
+                >
+                  <Square className="size-3.5 fill-current" />
+                  Stop
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  disabled={!project.parsed_markdown}
+                >
                   <RefreshCcw className="size-4" />
-                )}
-                Regenerate
-              </Button>
+                  Regenerate
+                </Button>
+              )}
               {!isEditing ? (
                 <Button
                   variant="default"
                   size="sm"
                   onClick={handleBeginEdit}
                   disabled={
+                    isEnteringEdit ||
                     Boolean(project.is_locked_by_other) ||
                     isPipelineActive ||
                     isBusy
                   }
                 >
-                  <Edit3 className="size-4" />
-                  Edit
+                  {isEnteringEdit ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Edit3 className="size-4" />
+                  )}
+                  {isEnteringEdit ? "Entering edit…" : "Edit"}
                 </Button>
               ) : (
                 <>
@@ -725,10 +857,14 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                     variant="outline"
                     size="sm"
                     onClick={handleCancelEdit}
-                    disabled={isBusy}
+                    disabled={isBusy || isCancelling}
                   >
-                    <X className="size-4" />
-                    Cancel
+                    {isCancelling ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <X className="size-4" />
+                    )}
+                    {isCancelling ? "Cancelling…" : "Cancel"}
                   </Button>
                   <Button
                     variant="default"
@@ -746,7 +882,11 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                 </>
               )}
               {project.is_locked_by_other && user?.is_admin && (
-                <Button variant="destructive" size="sm" onClick={handleForceUnlock}>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleForceUnlock}
+                >
                   <ShieldAlert className="size-4" />
                   Force Unlock
                 </Button>
@@ -764,7 +904,11 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
             {lockMessage && (
-              <Banner icon={<Lock className="size-4" />} title="Editing locked" message={lockMessage} />
+              <Banner
+                icon={<Lock className="size-4" />}
+                title="Editing locked"
+                message={lockMessage}
+              />
             )}
             {isEditing && !project.is_locked_by_other && (
               <Banner
@@ -776,19 +920,25 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
             {isPipelineActive && (
               <Banner
                 icon={<Loader2 className="size-4 animate-spin" />}
-                title="AI working"
-                message={`The pipeline is currently ${actionLabel(project.status)}. The editor will update automatically.`}
+                title="AI is working"
+                message={`The pipeline is currently ${actionLabel(
+                  project.status
+                )}. The editor will update automatically.`}
               />
             )}
             {project.status === "failed" && (
               <Banner
                 icon={<AlertTriangle className="size-4 text-destructive" />}
                 title="Pipeline failed"
-                message={project.error_message || "Generation failed. You can still edit the document manually."}
+                message={
+                  project.error_message ||
+                  "Generation failed. You can still edit the document manually."
+                }
                 variant="error"
               />
             )}
-            {typeof project.metadata?.warning === "string" && project.metadata.warning ? (
+            {typeof project.metadata?.warning === "string" &&
+            project.metadata.warning ? (
               <Banner
                 icon={<AlertTriangle className="size-4" />}
                 title="Extraction warning"
@@ -804,10 +954,25 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
               <div
                 className={cn(
                   "flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4",
-                  showMarkdown ? "border-r" : "",
+                  showMarkdown ? "border-r" : ""
                 )}
               >
-                <EditorContent editor={editor} />
+                {isEnteringEdit ? (
+                  <div className="animate-pulse space-y-4 px-12 py-8">
+                    <div className="h-6 w-3/4 rounded bg-muted" />
+                    <div className="h-4 w-full rounded bg-muted" />
+                    <div className="h-4 w-5/6 rounded bg-muted" />
+                    <div className="h-4 w-full rounded bg-muted" />
+                    <div className="h-4 w-2/3 rounded bg-muted" />
+                  </div>
+                ) : isCancelling ? (
+                  <div className="flex items-center gap-2 px-12 py-8 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
+                    Reverting changes…
+                  </div>
+                ) : (
+                  <EditorContent editor={editor} />
+                )}
               </div>
               {showMarkdown && (
                 <div className="flex min-h-0 w-[420px] flex-col bg-muted/20">
@@ -818,7 +983,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                     value={markdownSource}
                     onChange={(e) => handleMarkdownSourceChange(e.target.value)}
                     disabled={!isEditing || Boolean(project.is_locked_by_other)}
-                    className="h-full resize-none rounded-none border-0 bg-transparent font-mono text-xs leading-relaxed focus-visible:ring-0"
+                    className="h-full w-full resize-none rounded-none border-0 bg-transparent font-mono text-xs leading-relaxed focus-visible:ring-0"
                   />
                 </div>
               )}
@@ -827,7 +992,9 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
               <div className="flex items-center gap-3">
                 {editor && (
                   <>
-                    <span>{editor.storage.characterCount.characters()} chars</span>
+                    <span>
+                      {editor.storage.characterCount.characters()} chars
+                    </span>
                     <span>{editor.storage.characterCount.words()} words</span>
                   </>
                 )}
@@ -847,13 +1014,13 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
           </CardContent>
         </Card>
       </div>
-      
+
       {showSidebar && (
         <div className="flex w-[320px] shrink-0 min-h-0 flex-col">
-        <RFIPdfSidebar
-          onInsert={handleSidebarInsert}
-          disabled={!isEditing || Boolean(project.is_locked_by_other)}
-        />
+          <RFIPdfSidebar
+            onInsert={handleSidebarInsert}
+            disabled={!isEditing || Boolean(project.is_locked_by_other)}
+          />
         </div>
       )}
 
@@ -897,7 +1064,8 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 size-4 animate-spin" /> Rendering preview…
+                <Loader2 className="mr-2 size-4 animate-spin" /> Rendering
+                preview…
               </div>
             )}
           </div>
@@ -911,9 +1079,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
               <Sparkles className="size-4 text-muted-foreground" />
               RFI PDF Timeline
             </SheetTitle>
-            <p className="text-xs text-muted-foreground">
-              Most recent first
-            </p>
+            <p className="text-xs text-muted-foreground">Most recent first</p>
           </SheetHeader>
           <div className="h-[calc(100vh-6rem)] overflow-y-auto p-4">
             {timeline.length === 0 ? (
@@ -931,44 +1097,66 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                         <div className="min-w-0">
                           <StatusBadge status={actionLabel(entry.action)} />
                           <p className="mt-2 text-sm font-medium">
-                            {entry.details && typeof entry.details === "object" && "filename" in entry.details
-                              ? String((entry.details as Record<string, unknown>).filename || actionLabel(entry.action))
+                            {entry.details &&
+                            typeof entry.details === "object" &&
+                            "filename" in entry.details
+                              ? String(
+                                  (entry.details as Record<string, unknown>)
+                                    .filename || actionLabel(entry.action)
+                                )
                               : actionLabel(entry.action)}
                           </p>
-                          {entry.details && typeof entry.details === "object" && (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {Object.entries(entry.details).map(([key, value]) => {
-                                if (key === 'filename') return null;
-                                let formattedKey = key;
-                                let formattedValue = String(value);
-                                if (key === 'markdown_length') {
-                                  formattedKey = 'Content Length';
-                                  formattedValue = `${value} chars`;
-                                } else if (key === 'entity_refs') {
-                                  formattedKey = 'Data Inserted';
-                                  formattedValue = `${value} items`;
-                                } else if (key === 'requirements_count') {
-                                  formattedKey = 'Extracted Requirements';
-                                } else if (key === 'previous_editor') {
-                                  formattedKey = 'Previous Editor';
-                                  formattedValue = typeof value === 'object' && value ? (value as any).name || (value as any).email : String(value);
-                                }
-                                return (
-                                  <Badge key={key} variant="outline" className="text-[10px] font-normal bg-muted/30">
-                                    <span className="text-muted-foreground mr-1">{formattedKey}:</span>
-                                    {formattedValue}
-                                  </Badge>
-                                );
-                              })}
-                            </div>
-                          )}
+                          {entry.details &&
+                            typeof entry.details === "object" && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {Object.entries(entry.details).map(
+                                  ([key, value]) => {
+                                    if (key === "filename") return null;
+                                    let formattedKey = key;
+                                    let formattedValue = String(value);
+                                    if (key === "markdown_length") {
+                                      formattedKey = "Content Length";
+                                      formattedValue = `${value} chars`;
+                                    } else if (key === "entity_refs") {
+                                      formattedKey = "Data Inserted";
+                                      formattedValue = `${value} items`;
+                                    } else if (key === "requirements_count") {
+                                      formattedKey = "Extracted Requirements";
+                                    } else if (key === "previous_editor") {
+                                      formattedKey = "Previous Editor";
+                                      formattedValue =
+                                        typeof value === "object" && value
+                                          ? (value as any).name ||
+                                            (value as any).email
+                                          : String(value);
+                                    }
+                                    return (
+                                      <Badge
+                                        key={key}
+                                        variant="outline"
+                                        className="text-[10px] font-normal bg-muted/30"
+                                      >
+                                        <span className="text-muted-foreground mr-1">
+                                          {formattedKey}:
+                                        </span>
+                                        {formattedValue}
+                                      </Badge>
+                                    );
+                                  }
+                                )}
+                              </div>
+                            )}
                         </div>
                         <RelativeTime
                           iso={entry.created_at}
                           className="shrink-0 text-xs text-muted-foreground"
                         />
                       </div>
-                      <UserPill className="mt-2" name={entry.user?.name} email={entry.user?.email} />
+                      <UserPill
+                        className="mt-2"
+                        name={entry.user?.name}
+                        email={entry.user?.email}
+                      />
                     </div>
                   </div>
                 ))}
@@ -998,12 +1186,19 @@ function Banner({
         "flex items-start gap-2 border-b px-4 py-2 text-sm",
         variant === "error"
           ? "bg-destructive/10 text-destructive"
-          : "bg-muted/30 text-muted-foreground",
+          : "bg-muted/30 text-muted-foreground"
       )}
     >
       <span className="mt-0.5 shrink-0">{icon}</span>
       <div>
-        <div className={cn("font-semibold", variant === "error" ? "text-destructive" : "text-foreground")}>{title}</div>
+        <div
+          className={cn(
+            "font-semibold",
+            variant === "error" ? "text-destructive" : "text-foreground"
+          )}
+        >
+          {title}
+        </div>
         <p className="mt-0.5">{message}</p>
       </div>
     </div>

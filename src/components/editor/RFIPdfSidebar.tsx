@@ -80,7 +80,9 @@ export function RFIPdfSidebar({ onInsert, disabled }: RFIPdfSidebarProps) {
     setProjectsLoading(true);
     setError(null);
     try {
-      const yearsBack = debProjectYears ? Number.parseInt(debProjectYears, 10) : undefined;
+      const yearsBack = debProjectYears
+        ? Number.parseInt(debProjectYears, 10)
+        : undefined;
       const response = await listMasterProjects({
         search: debProjectSearch,
         product: debProjectProduct,
@@ -93,9 +95,7 @@ export function RFIPdfSidebar({ onInsert, disabled }: RFIPdfSidebarProps) {
     } catch (err: unknown) {
       if (my !== requestId.current) return;
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load master projects.",
+        err instanceof Error ? err.message : "Could not load master projects."
       );
       setProjects([]);
       setProjectsTotal(0);
@@ -111,7 +111,9 @@ export function RFIPdfSidebar({ onInsert, disabled }: RFIPdfSidebarProps) {
     setEngineersLoading(true);
     setError(null);
     try {
-      const min = debEngineerYears ? Number.parseFloat(debEngineerYears) : undefined;
+      const min = debEngineerYears
+        ? Number.parseFloat(debEngineerYears)
+        : undefined;
       const response = await listMasterEngineers({
         search: debEngineerSearch,
         role: debEngineerRole,
@@ -124,9 +126,7 @@ export function RFIPdfSidebar({ onInsert, disabled }: RFIPdfSidebarProps) {
     } catch (err: unknown) {
       if (my !== requestId.current) return;
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load engineers.",
+        err instanceof Error ? err.message : "Could not load engineers."
       );
       setEngineers([]);
       setEngineersTotal(0);
@@ -158,12 +158,12 @@ export function RFIPdfSidebar({ onInsert, disabled }: RFIPdfSidebarProps) {
       event.dataTransfer.setData("text/plain", entityLabel(entity));
       event.dataTransfer.effectAllowed = "copy";
     },
-    [],
+    []
   );
 
   const headerTotal = useMemo(
     () => (tab === "projects" ? projectsTotal : engineersTotal),
-    [tab, projectsTotal, engineersTotal],
+    [tab, projectsTotal, engineersTotal]
   );
 
   return (
@@ -185,7 +185,7 @@ export function RFIPdfSidebar({ onInsert, disabled }: RFIPdfSidebarProps) {
                 "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 tab === "projects"
                   ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-muted/40",
+                  : "text-muted-foreground hover:bg-muted/40"
               )}
             >
               Projects
@@ -197,7 +197,7 @@ export function RFIPdfSidebar({ onInsert, disabled }: RFIPdfSidebarProps) {
                 "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 tab === "engineers"
                   ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-muted/40",
+                  : "text-muted-foreground hover:bg-muted/40"
               )}
             >
               Engineers
@@ -335,7 +335,10 @@ function ProjectRow({
 }: {
   project: MasterProject;
   onInsert: (entity: SidebarEntity) => void;
-  onDragStart: (event: React.DragEvent<HTMLDivElement>, entity: SidebarEntity) => void;
+  onDragStart: (
+    event: React.DragEvent<HTMLDivElement>,
+    entity: SidebarEntity
+  ) => void;
   disabled?: boolean;
 }) {
   const entity: SidebarEntity = { type: "project", data: project };
@@ -346,9 +349,10 @@ function ProjectRow({
         draggable={!disabled}
         onDragStart={(e) => onDragStart(e, entity)}
         className={cn(
-          "group flex items-start gap-2 rounded-lg border border-border/60 bg-card p-2 transition-all",
-          !disabled && "cursor-grab hover:border-border hover:shadow-sm active:cursor-grabbing",
-          disabled && "opacity-60",
+          "group flex items-start gap-2 rounded-lg border border-border/60 bg-card p-2 transition-all overflow-hidden",
+          !disabled &&
+            "cursor-grab hover:border-border hover:shadow-sm active:cursor-grabbing",
+          disabled && "opacity-60"
         )}
       >
         <GripVertical className="mt-1 size-3.5 shrink-0 text-muted-foreground" />
@@ -370,10 +374,14 @@ function ProjectRow({
                 const label =
                   `${product.model || product.brand || ""}`.trim() ||
                   `Product ${idx + 1}`;
-                const keySuffix = `${product.serial_number ?? ""}|${product.model ?? ""}|${product.brand ?? ""}`;
+                const keySuffix = `${product.serial_number ?? ""}|${
+                  product.model ?? ""
+                }|${product.brand ?? ""}`;
                 return (
                   <Badge
-                    key={`${project.id}-pb-${product.product_id ?? `i${idx}`}-${keySuffix}`}
+                    key={`${project.id}-pb-${
+                      product.product_id ?? `i${idx}`
+                    }-${keySuffix}`}
                     variant="secondary"
                     className="px-1.5 py-0 text-[10px]"
                   >
@@ -412,7 +420,10 @@ function EngineerRow({
 }: {
   engineer: MasterEngineer;
   onInsert: (entity: SidebarEntity) => void;
-  onDragStart: (event: React.DragEvent<HTMLDivElement>, entity: SidebarEntity) => void;
+  onDragStart: (
+    event: React.DragEvent<HTMLDivElement>,
+    entity: SidebarEntity
+  ) => void;
   disabled?: boolean;
 }) {
   const entity: SidebarEntity = { type: "engineer", data: engineer };
@@ -423,8 +434,9 @@ function EngineerRow({
         onDragStart={(e) => onDragStart(e, entity)}
         className={cn(
           "group flex items-start gap-2 rounded-lg border border-border/60 bg-card p-2 transition-all",
-          !disabled && "cursor-grab hover:border-border hover:shadow-sm active:cursor-grabbing",
-          disabled && "opacity-60",
+          !disabled &&
+            "cursor-grab hover:border-border hover:shadow-sm active:cursor-grabbing",
+          disabled && "opacity-60"
         )}
       >
         <GripVertical className="mt-1 size-3.5 shrink-0 text-muted-foreground" />
@@ -478,7 +490,9 @@ function EmptyState({
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm">
-      <div className="rounded-full bg-muted p-2 text-muted-foreground">{icon}</div>
+      <div className="rounded-full bg-muted p-2 text-muted-foreground">
+        {icon}
+      </div>
       <p className="font-medium">{title}</p>
       <p className="text-xs text-muted-foreground">{description}</p>
     </div>

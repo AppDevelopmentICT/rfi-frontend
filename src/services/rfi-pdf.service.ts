@@ -253,6 +253,13 @@ export async function softDeleteRfiPdf(documentId: string): Promise<void> {
   await apiClient.delete(`/v1/rfi-pdf/${encodeURIComponent(documentId)}`);
 }
 
+export async function stopRfiPdfGeneration(documentId: string): Promise<RFIPdfProjectResponse> {
+  const { data } = await apiClient.post<RFIPdfProjectResponse>(
+    `/v1/rfi-pdf/${encodeURIComponent(documentId)}/stop-generation`,
+  );
+  return data;
+}
+
 export async function listMasterProjects(params: {
   search?: string;
   product?: string;
