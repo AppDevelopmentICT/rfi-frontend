@@ -5,12 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
+  ChevronDown,
   ChevronsUpDown,
   CreditCard,
   Database,
+  FileSignature,
+  FileSpreadsheet,
   FileText,
   LayoutDashboard,
   LogOut,
+  Plus,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -109,6 +113,64 @@ export function Sidebar() {
           <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
             RFI/RFP Platform
           </span>
+        </div>
+
+        <div className="px-4 pt-5 pb-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 h-9 text-sm font-medium text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none select-none">
+              <Plus className="size-4" strokeWidth={2.5} />
+              <span>Create New</span>
+              <ChevronDown className="ml-auto size-3.5 opacity-50" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              alignOffset={4}
+              className="rounded-xl border border-gray-200/80 bg-white p-1.5 shadow-xl shadow-black/[0.08]"
+            >
+              <DropdownMenuItem
+                className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-gray-50 focus:bg-gray-50"
+                onClick={() => router.push("/rfi/upload")}
+              >
+                <FileSpreadsheet className="size-4 shrink-0 text-slate-500" />
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-800">
+                    New RFI (Excel)
+                  </p>
+                  <p className="text-[11px] leading-snug text-slate-400">
+                    Upload Excel workbook
+                  </p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-gray-50 focus:bg-gray-50"
+                onClick={() => router.push("/rfi-pdf/upload")}
+              >
+                <FileText className="size-4 shrink-0 text-slate-500" />
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-800">
+                    New RFI (PDF)
+                  </p>
+                  <p className="text-[11px] leading-snug text-slate-400">
+                    Upload PDF folder with auto-draft
+                  </p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-gray-50 focus:bg-gray-50"
+                onClick={() => router.push("/rfp/upload")}
+              >
+                <FileSignature className="size-4 shrink-0 text-slate-500" />
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-800">
+                    New RFP
+                  </p>
+                  <p className="text-[11px] leading-snug text-slate-400">
+                    Generate Ch.3
+                  </p>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <ScrollArea className="flex-1 px-3 py-4">
