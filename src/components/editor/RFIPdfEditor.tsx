@@ -1126,8 +1126,8 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
                                       formattedKey = "Previous Editor";
                                       formattedValue =
                                         typeof value === "object" && value
-                                          ? (value as any).name ||
-                                            (value as any).email
+                                          ? (value as Record<string, string>).name ||
+                                            (value as Record<string, string>).email
                                           : String(value);
                                     }
                                     return (

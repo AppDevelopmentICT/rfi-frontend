@@ -319,7 +319,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
       setWarningMessage(null);
       toast.error(message);
     },
-    onIncomplete: (_partialContent, _reason) => {
+    onIncomplete: () => {
       streamingActiveRef.current = false;
       streamHasChunksRef.current = false;
       setPendingMessage(null);

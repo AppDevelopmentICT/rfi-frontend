@@ -4,10 +4,8 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell,
   ChevronDown,
   ChevronsUpDown,
-  CreditCard,
   Database,
   FileSignature,
   FileSpreadsheet,
@@ -16,7 +14,6 @@ import {
   LogOut,
   Plus,
   ShieldCheck,
-  Sparkles,
   Trash2,
   User,
   Users,

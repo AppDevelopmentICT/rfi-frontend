@@ -86,7 +86,6 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
     }
     setIsStreaming(false);
     setStreamingBuffer("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cancel = useCallback(() => {

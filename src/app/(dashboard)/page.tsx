@@ -19,12 +19,10 @@ import {
   exportRfiExcel,
   listRfiDocuments,
   softDeleteRfiDocument,
-  type RFIProjectResponse,
 } from "@/services/rfi.service";
 import {
   listRfiPdfs,
   softDeleteRfiPdf,
-  type RFIPdfProjectResponse,
 } from "@/services/rfi-pdf.service";
 import {
   listMyRfpProjects,
@@ -137,7 +135,7 @@ export default function HomePage() {
     [history]
   );
 
-  const handleDeleteRfi = async (doc: any) => {
+  const handleDeleteRfi = async (doc: { type: string; documentId: string; fileName: string }) => {
     if (
       !window.confirm(
         `Move "${doc.fileName}" to Trash? Admins can restore it later.`

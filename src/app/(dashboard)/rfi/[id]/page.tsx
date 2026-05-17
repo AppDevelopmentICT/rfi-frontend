@@ -69,13 +69,15 @@ export default function RfiDetailPage() {
   const fetchInFlightRef = useRef(false);
 
   const activeJobs = useRFIStore((s) => s.activeJobs);
-  const updateJob = useRFIStore((s) => s.updateJob);
   const isGenerating = document?.status === "generating" || activeJobs.some((j) => j.id === documentId && j.status === "generating");
 
   const isGeneratingRef = useRef(isGenerating);
-  isGeneratingRef.current = isGenerating;
   const isRegeneratingRef = useRef(isRegenerating);
-  isRegeneratingRef.current = isRegenerating;
+
+  useEffect(() => {
+    isGeneratingRef.current = isGenerating;
+    isRegeneratingRef.current = isRegenerating;
+  }, [isGenerating, isRegenerating]);
 
   const loadDocument = useCallback(async () => {
     const data = await getRfiDocument(documentId);
@@ -182,7 +184,7 @@ export default function RfiDetailPage() {
       clearInterval(interval);
       console.debug(`[Polling:page] cleanup doc=${documentId}`);
     };
-  }, [documentId, isGenerating, isRegenerating]);
+  }, [documentId, isGenerating, isRegenerating, loadTimeline, setExcelData]);
 
   const lockMessage = useMemo(() => {
     if (!document?.is_locked_by_other || !document.editing_user) return null;

@@ -155,7 +155,6 @@ export function useJobPolling(
       intervalMs,
       task: async () => {
         const { getRfiDocument } = await import("@/services/rfi.service");
-        const { useExcelStore } = await import("@/store/useExcelStore");
         try {
           const doc = await getRfiDocument(jobId);
           if (doc.status === "completed") {
