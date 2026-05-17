@@ -6,7 +6,6 @@ import {
   Cloud,
   ExternalLink,
   Layers,
-  Loader2,
   Mail,
   Shield,
   Signal,
@@ -19,6 +18,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { pb } from "@/lib/pocketbase";
 import { AvatarUpload } from "./AvatarUpload";
 import { ChangePasswordForm } from "./ChangePasswordForm";
+import { ProfileSkeleton } from "./ProfileSkeleton";
 import {
   Card,
   CardContent,
@@ -99,11 +99,7 @@ export default function ProfilePage() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (!user) {
