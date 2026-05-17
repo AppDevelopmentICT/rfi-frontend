@@ -47,6 +47,7 @@ import { RelativeTime } from "@/components/shared/RelativeTime";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ActionButtons } from "@/components/shared/ActionButtons";
+import { DashboardSkeleton } from "@/components/shared/DashboardSkeleton";
 import { cn } from "@/lib/utils";
 import { formatAuditActionTitle } from "@/lib/audit-labels";
 import { useStaleData } from "@/hooks/useStaleData";
@@ -178,13 +179,7 @@ export default function HomePage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <p className="animate-pulse text-muted-foreground">
-          Loading dashboard...
-        </p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
