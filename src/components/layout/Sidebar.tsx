@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   ChevronsUpDown,
@@ -17,7 +17,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,7 @@ import { useSidebar } from "@/contexts/sidebar-context";
 import { pb } from "@/lib/pocketbase";
 import { cn } from "@/lib/utils";
 import { logCustomEvent } from "@/services/dashboard.service";
+import { getAvatarUrl } from "@/services/profile.service";
 
 const mainNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -59,6 +60,7 @@ function getInitials(name: string, email: string) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isSidebarOpen } = useSidebar();
   const { user, ready, signOut } = useAuth();
 
@@ -71,6 +73,11 @@ export function Sidebar() {
   const email = ready && user ? user.email || "m@example.com" : "m@example.com";
   const initials = getInitials(name, email);
   const isAdmin = !!user?.is_admin;
+
+  const avatarSrc = getAvatarUrl(
+    pb.authStore.record as Parameters<typeof getAvatarUrl>[0],
+    100
+  );
 
   const isActivePath = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -162,6 +169,7 @@ export function Sidebar() {
           <DropdownMenu>
             <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-xl p-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent">
               <Avatar>
+                <AvatarImage src={avatarSrc} alt={name} />
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
@@ -185,6 +193,7 @@ export function Sidebar() {
                 <DropdownMenuLabel className="p-2 font-normal">
                   <div className="flex items-center gap-3">
                     <Avatar>
+                      <AvatarImage src={avatarSrc} alt={name} />
                       <AvatarFallback>{initials}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
@@ -201,9 +210,12 @@ export function Sidebar() {
 
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem className="gap-2 p-2">
+                <DropdownMenuItem
+                  className="gap-2 p-2"
+                  onClick={() => router.push("/profile")}
+                >
                   <User className="size-4" />
-                  Profile
+                  Edit Profile
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
