@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -166,69 +167,80 @@ export function Sidebar() {
         </ScrollArea>
 
         <div className="mt-auto border-t border-border/50 p-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-xl p-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent">
-              <Avatar>
-                <AvatarImage src={avatarSrc} alt={name} />
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold leading-none text-sidebar-foreground">
-                  {name}
-                </p>
-                <p className="mt-1 truncate text-xs leading-none text-muted-foreground">
-                  {email}
-                </p>
+          {!ready || !user ? (
+            <div className="flex items-center gap-3 rounded-xl p-2">
+              <Skeleton className="size-8 shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1 flex flex-col gap-1">
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="h-3 w-32" />
               </div>
-              <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
-            </DropdownMenuTrigger>
+              <Skeleton className="size-4 shrink-0" />
+            </div>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-xl p-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent">
+                <Avatar>
+                  <AvatarImage src={avatarSrc} alt={name} />
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 flex flex-col">
+                  <p className="truncate text-sm font-semibold leading-snug text-sidebar-foreground">
+                    {name}
+                  </p>
+                  <p className="truncate text-xs leading-snug text-muted-foreground">
+                    {email}
+                  </p>
+                </div>
+                <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+              </DropdownMenuTrigger>
 
-            <DropdownMenuContent
-              side="right"
-              align="end"
-              sideOffset={8}
-              className="w-64 p-1.5"
-            >
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="p-2 font-normal">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={avatarSrc} alt={name} />
-                      <AvatarFallback>{initials}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {name}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {email}
-                      </p>
-                    </div>
-                  </div>
-                </DropdownMenuLabel>
-              </DropdownMenuGroup>
-
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  className="gap-2 p-2"
-                  onClick={() => router.push("/profile")}
-                >
-                  <User className="size-4" />
-                  Edit Profile
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                className="gap-2 p-2"
-                onClick={handleLogout}
+              <DropdownMenuContent
+                side="right"
+                align="end"
+                sideOffset={8}
+                className="w-64 p-1.5"
               >
-                <LogOut className="size-4" />
-                Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="p-2 font-normal">
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={avatarSrc} alt={name} />
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {email}
+                        </p>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    className="gap-2 p-2"
+                    onClick={() => router.push("/profile")}
+                  >
+                    <User className="size-4" />
+                    Edit Profile
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  className="gap-2 p-2"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="size-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
     </aside>
