@@ -40,7 +40,9 @@ export default function LoginPage() {
   async function handleMicrosoft() {
     setOauthBusy(true);
     try {
-      const authData = await pb.collection("users").authWithOAuth2({ provider: "microsoft" });
+      const authData = await pb
+        .collection("users")
+        .authWithOAuth2({ provider: "microsoft" });
 
       const email = pb.authStore.record?.email as string | undefined;
       const avatarUrl = authData.meta?.avatarUrl;
@@ -48,10 +50,13 @@ export default function LoginPage() {
       if (avatarUrl && authData.record?.id) {
         try {
           await pb.collection("users").update(authData.record.id, {
-            avatarUrl: avatarUrl
+            avatarUrl: avatarUrl,
           });
         } catch (updateErr) {
-          console.error("Failed to update user avatarUrl in PocketBase:", updateErr);
+          console.error(
+            "Failed to update user avatarUrl in PocketBase:",
+            updateErr
+          );
         }
       }
       if (!isCompanyEmail(email)) {
@@ -65,7 +70,10 @@ export default function LoginPage() {
 
       toast.success("Signed in successfully");
       try {
-        await logCustomEvent("auth.login", "user", { method: "microsoft", email });
+        await logCustomEvent("auth.login", "user", {
+          method: "microsoft",
+          email,
+        });
       } catch (e) {
         console.error("Failed to log login event", e);
       }
@@ -92,14 +100,20 @@ export default function LoginPage() {
     const password = String(fd.get("password") ?? "");
 
     try {
-      const { data } = await apiClient.post("/v1/auth/login", { email, password });
-      
+      const { data } = await apiClient.post("/v1/auth/login", {
+        email,
+        password,
+      });
+
       // Save Token & Record directly from our custom API
       pb.authStore.save(data.token, data.record);
 
       toast.success("Signed in successfully");
       try {
-        await logCustomEvent("auth.login", "user", { method: "password", email });
+        await logCustomEvent("auth.login", "user", {
+          method: "password",
+          email,
+        });
       } catch (e) {
         console.error("Failed to log login event", e);
       }
@@ -112,7 +126,8 @@ export default function LoginPage() {
         typeof err.response.data === "object" &&
         err.response.data !== null &&
         "error" in err.response.data &&
-        typeof (err.response.data as { error?: { message?: string } }).error?.message === "string"
+        typeof (err.response.data as { error?: { message?: string } }).error
+          ?.message === "string"
           ? (err.response.data as { error: { message: string } }).error.message
           : "Please check your email and password.";
       toast.error("Sign in failed", { description: msg });
@@ -156,7 +171,10 @@ export default function LoginPage() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-[#334155]" htmlFor="password">
+            <label
+              className="text-sm font-medium text-[#334155]"
+              htmlFor="password"
+            >
               Password
             </label>
           </div>
@@ -220,7 +238,7 @@ export default function LoginPage() {
             height={20}
           />
         )}
-        Microsoft Entra ID
+        Sign in with Microsoft
       </Button>
 
       <div className="mt-10 pt-6 border-t border-[#f1f5f9]">
