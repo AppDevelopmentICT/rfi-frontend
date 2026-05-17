@@ -313,11 +313,6 @@ export default function HomePage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <Link href={doc.type === "pdf" ? `/rfi-pdf/${doc.documentId}` : `/rfi/${doc.documentId}`}>
-                                <Button variant="outline" size="sm">
-                                  Open
-                                </Button>
-                              </Link>
                               {doc.type === "excel" && (
                                 <Button
                                   variant="ghost"
@@ -328,6 +323,11 @@ export default function HomePage() {
                                   <Download className="size-4" />
                                 </Button>
                               )}
+                              <Link href={doc.type === "pdf" ? `/rfi-pdf/${doc.documentId}` : `/rfi/${doc.documentId}`}>
+                                <Button variant="outline" size="sm">
+                                  Open
+                                </Button>
+                              </Link>
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
