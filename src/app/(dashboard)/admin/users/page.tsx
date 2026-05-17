@@ -24,13 +24,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UnauthorizedPage } from "@/components/shared/UnauthorizedPage";
 import { listAdminUsers, setUserAdmin } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
+import { useAuth } from "@/contexts/auth-context";
 import { useFetchOnNavigation } from "@/hooks/useFetchOnNavigation";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 export default function AdminUsersPage() {
+  const { user } = useAuth();
+  const isAdmin = !!user?.is_admin;
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -83,6 +87,10 @@ export default function AdminUsersPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
   const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, total);
+
+  if (!isAdmin) {
+    return <UnauthorizedPage resource="the user management page" />;
+  }
 
   return (
     <div className="flex-1 space-y-6 px-6 py-6">

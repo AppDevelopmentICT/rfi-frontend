@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertOctagon,
   FileSpreadsheet,
   FileText,
   Loader2,
@@ -26,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UnauthorizedPage } from "@/components/shared/UnauthorizedPage";
 import {
   hardDeleteAdminRfi,
   hardDeleteAdminRfp,
@@ -145,14 +145,7 @@ export default function AdminTrashPage() {
   };
 
   if (!isAdmin) {
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <div className="rounded-lg border bg-background p-6 text-sm text-muted-foreground shadow-sm">
-          <AlertOctagon className="mb-2 size-5 text-amber-600" />
-          You need administrator access to view this page.
-        </div>
-      </div>
-    );
+    return <UnauthorizedPage resource="the trash and recovery page" />;
   }
 
   return (

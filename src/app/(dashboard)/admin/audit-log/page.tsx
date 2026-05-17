@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 
+import { UnauthorizedPage } from "@/components/shared/UnauthorizedPage";
 import { ExactTime } from "@/components/shared/RelativeTime";
 import { UserPill } from "@/components/shared/UserPill";
 import { Button } from "@/components/ui/button";
@@ -34,10 +35,13 @@ import {
 } from "@/services/admin.service";
 import type { RFIUser } from "@/services/rfi.service";
 import { formatAuditActionTitle, formatAuditResourceType } from "@/lib/audit-labels";
+import { useAuth } from "@/contexts/auth-context";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 export default function AdminAuditLogPage() {
+  const { user } = useAuth();
+  const isAdmin = !!user?.is_admin;
   const [allUsers, setAllUsers] = useState<RFIUser[]>([]);
   const [options, setOptions] = useState<AuditFilterOptions>({
     actions: [],
@@ -141,6 +145,10 @@ export default function AdminAuditLogPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  if (!isAdmin) {
+    return <UnauthorizedPage resource="the audit log" />;
+  }
 
   return (
     <div className="flex-1 space-y-6 px-6 py-6">
