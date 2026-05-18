@@ -909,10 +909,16 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
           open={isTimelineAccordionOpen}
           onOpenChange={setIsTimelineAccordionOpen}
           className={cn(
-            "flex flex-col rounded-lg border border-border/70 bg-card shadow-sm overflow-hidden transition-[flex-grow,flex-shrink,flex-basis,height] duration-300 ease-in-out",
+            "flex flex-col rounded-lg border border-border/70 bg-card shadow-sm overflow-hidden",
+            // Animate ONLY `max-height` (single, GPU-friendly property).
+            // `transition-all` and animating flex-grow/basis/height in parallel
+            // caused layout re-entrancy → jitter. `max-height` interpolates
+            // smoothly and clips overflow strictly, so the scrollbar can never
+            // appear mid-animation to feed back into layout.
+            "transition-[max-height] duration-300 ease-in-out will-change-[max-height]",
             isTimelineAccordionOpen
-              ? "flex-1 min-h-0"
-              : "flex-none h-auto",
+              ? "flex-1 min-h-0 max-h-[100vh]"
+              : "flex-none max-h-12",
           )}
         >
           <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-3 py-2 text-left transition-colors hover:bg-muted/30">
@@ -947,8 +953,20 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
               )} />
             </div>
           </CollapsibleTrigger>
-          <CollapsibleContent className="min-h-0 flex-1 overflow-y-auto p-4">
-            {renderTimelineItems()}
+          {/*
+            Keep the Collapsible panel itself strictly `overflow-hidden`.
+            Scrolling lives on the inner wrapper so a scrollbar appearing
+            mid-animation cannot resize the panel and trigger a jitter loop.
+            `scrollbar-gutter: stable` reserves the gutter to prevent
+            sudden width changes when content overflows.
+          */}
+          <CollapsibleContent className="collapsible-panel min-h-0 flex-1 overflow-hidden">
+            <div
+              className="h-full w-full overflow-y-auto p-4 scrollbar-thin"
+              style={{ scrollbarGutter: "stable" }}
+            >
+              {renderTimelineItems()}
+            </div>
           </CollapsibleContent>
         </Collapsible>
       </div>
