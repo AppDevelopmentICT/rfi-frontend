@@ -1024,53 +1024,15 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
         </div>
       )}
 
-      <Sheet open={showPreview} onOpenChange={setShowPreview}>
-        <SheetContent side="right" className="w-[95vw] sm:max-w-4xl p-0">
-          <SheetHeader className="border-b">
-            <SheetTitle className="flex items-center gap-2">
-              <Eye className="size-4" />
-              PDF Preview
-              <Badge variant="secondary">{project.fileName}</Badge>
-            </SheetTitle>
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-xs text-muted-foreground">
-                Live render of the current draft. Save changes to refresh.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={refreshPreview}
-                disabled={previewLoading}
-              >
-                {previewLoading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCcw className="size-4" />
-                )}
-                Refresh
-              </Button>
-            </div>
-          </SheetHeader>
-          <div className="h-[calc(100vh-6rem)] w-full bg-muted/30 p-4">
-            {previewError ? (
-              <div className="flex h-full items-center justify-center text-sm text-destructive">
-                {previewError}
-              </div>
-            ) : previewUrl ? (
-              <iframe
-                src={previewUrl}
-                title="RFI PDF preview"
-                className="size-full rounded-md border bg-background"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 size-4 animate-spin" /> Rendering
-                preview…
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <PdfPreviewModal
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        fileName={project.fileName}
+        previewUrl={previewUrl}
+        previewError={previewError}
+        previewLoading={previewLoading}
+        onRefresh={refreshPreview}
+      />
 
       <Sheet open={showTimeline} onOpenChange={setShowTimeline}>
         <SheetContent side="right" className="w-[92vw] sm:max-w-3xl p-0">
@@ -1165,6 +1127,139 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
           </div>
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+interface PdfPreviewModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fileName?: string | null;
+  previewUrl: string | null;
+  previewError: string | null;
+  previewLoading: boolean;
+  onRefresh: () => void | Promise<void>;
+}
+
+function PdfPreviewModal({
+  open,
+  onOpenChange,
+  fileName,
+  previewUrl,
+  previewError,
+  previewLoading,
+  onRefresh,
+}: PdfPreviewModalProps) {
+  // Close on Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onOpenChange(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onOpenChange]);
+
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-preview-title"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+    >
+      {/* Backdrop */}
+      <button
+        type="button"
+        aria-label="Close preview"
+        onClick={() => onOpenChange(false)}
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200"
+      />
+
+      {/* Modal container */}
+      <div
+        className="relative z-10 flex h-[90vh] w-[90vw] max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 border-b px-5 py-3">
+          <div className="min-w-0">
+            <h2
+              id="pdf-preview-title"
+              className="flex items-center gap-2 text-base font-semibold"
+            >
+              <Eye className="size-4" />
+              PDF Preview
+              {fileName && (
+                <Badge variant="secondary" className="truncate">
+                  {fileName}
+                </Badge>
+              )}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Live render of the current draft. Save changes to refresh.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void onRefresh()}
+              disabled={previewLoading}
+            >
+              {previewLoading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCcw className="size-4" />
+              )}
+              Refresh
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              aria-label="Close preview"
+              className="size-8 p-0"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-muted/30 p-4">
+          {previewError ? (
+            <div className="flex h-full items-center justify-center text-sm text-destructive">
+              {previewError}
+            </div>
+          ) : previewUrl ? (
+            <iframe
+              src={previewUrl}
+              title="RFI PDF preview"
+              className="h-full w-full flex-1 rounded-md border bg-background"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 size-4 animate-spin" /> Rendering
+              preview…
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
