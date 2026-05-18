@@ -31,8 +31,19 @@ export function ExcelTable({
 
   if (!excelData) return null;
 
-  const sheetNames = Object.keys(excelData);
-  const currentSheet = excelData[activeSheet];
+  // BUG 1 FIX: Exclude internal/metadata sheets (e.g. "_column_info") from the
+  // rendered tab list. Any sheet whose name starts with an underscore is treated
+  // as backend/parser metadata and must not be shown to the user.
+  const sheetNames = Object.keys(excelData).filter(
+    (name) => !name.startsWith("_")
+  );
+
+  // If the currently-active sheet was filtered out (e.g. persisted state from a
+  // previous session pointed at "_column_info"), fall back to the first visible
+  // sheet so the table still renders.
+  const resolvedActiveSheet =
+    sheetNames.includes(activeSheet) ? activeSheet : sheetNames[0] ?? "";
+  const currentSheet = excelData[resolvedActiveSheet];
 
   if (!currentSheet) return null;
 
@@ -51,13 +62,13 @@ export function ExcelTable({
               onClick={() => setActiveSheet(name)}
               className={cn(
                 "relative px-4 py-2.5 text-sm font-medium transition-colors",
-                name === activeSheet
+                name === resolvedActiveSheet
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
               {name}
-              {name === activeSheet && (
+              {name === resolvedActiveSheet && (
                 <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary rounded-full" />
               )}
             </button>
@@ -129,7 +140,7 @@ export function ExcelTable({
                           if (!isGenerated || readOnly) return;
                           const newValue = e.target.innerText;
                           if (newValue !== String(value || "")) {
-                            updateLocalCell(activeSheet, rowIdx, header, newValue);
+                            updateLocalCell(resolvedActiveSheet, rowIdx, header, newValue);
                             onDirtyChange?.(true);
                           }
                         }}
@@ -149,7 +160,7 @@ export function ExcelTable({
                             "hover:bg-muted/60 hover:text-muted-foreground",
                             isRowRegenerating && "opacity-100"
                           )}
-                          onClick={() => onRegenerateRow(activeSheet, rowIdx)}
+                          onClick={() => onRegenerateRow(resolvedActiveSheet, rowIdx)}
                           disabled={isRowRegenerating}
                         >
                           <RefreshCw

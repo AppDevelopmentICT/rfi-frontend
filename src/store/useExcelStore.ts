@@ -37,7 +37,9 @@ export const useExcelStore = create<ExcelStore>()(
   setFile: (file) => set({ file, fileName: file.name }),
 
   setExcelData: (data) => {
-    const sheets = Object.keys(data);
+    // Skip internal/metadata sheets (e.g. "_column_info") when choosing the
+    // default active sheet so the UI never lands on a hidden tab.
+    const sheets = Object.keys(data).filter((name) => !name.startsWith("_"));
     set({ excelData: data, activeSheet: sheets[0] ?? "" });
   },
 

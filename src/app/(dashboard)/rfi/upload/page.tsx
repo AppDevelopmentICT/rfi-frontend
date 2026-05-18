@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, ArrowRight, Loader2 } from "lucide-react";
+import { FileSpreadsheet, ArrowRight, Loader2, Trash2 } from "lucide-react";
 
 import { FileUpload } from "@/components/shared/FileUpload";
 import { useRFIStore } from "@/store/useRFIStore";
 import { useExcelStore } from "@/store/useExcelStore";
 import { useReadExcelMutation } from "@/hooks/useRFIQueries";
-import { FileDown, Trash2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -18,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export default function UploadRfiPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -32,6 +32,9 @@ export default function UploadRfiPage() {
   
   const savedFileName = useRFIStore((s) => s.fileName);
   const savedFileBase64 = useRFIStore((s) => s.fileBase64);
+
+  // Strict Approach 1: a single source of truth for the conditional render.
+  const hasLocalDraft = Boolean(savedFileName && savedFileBase64);
 
   const handleDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -84,77 +87,104 @@ export default function UploadRfiPage() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {(savedFileName && savedFileBase64) && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-blue-100">
-                    <FileDown className="size-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-blue-900">Unsaved Local Draft</h3>
-                    <p className="text-xs text-blue-700 mt-1">{savedFileName}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleDeleteLocal} className="text-destructive hover:bg-destructive hover:text-destructive-foreground">
-                    <Trash2 className="size-4 mr-1" />
-                    Delete
-                  </Button>
-                  <Button size="sm" onClick={handleContinueLocal}>
-                    Continue
-                  </Button>
-                </div>
+          {hasLocalDraft ? (
+            /* ──────────────────────────────────────────────────────────
+               STRICT APPROACH 1: Local draft exists.
+               Render ONLY the integrated draft row. Dropzone is hidden.
+               ────────────────────────────────────────────────────────── */
+            <div className="flex items-center gap-4 rounded-lg border border-border bg-white p-4">
+              <div className="flex size-10 items-center justify-center rounded-lg border border-border bg-muted/40">
+                <FileSpreadsheet className="size-5 text-muted-foreground" />
               </div>
-            </div>
-          )}
-          <FileUpload
-            onDrop={handleDrop}
-            accept={{
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-              "application/vnd.ms-excel": [".xls"],
-            }}
-            title="Drag & drop your RFI file here, or click to browse"
-            description="XLSX or XLS format"
-          />
 
-          {selectedFile && (
-            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-                  <FileSpreadsheet className="size-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{selectedFile.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="text-xs text-muted-foreground">
+                  Unsaved Local Draft
+                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">
+                    {savedFileName}
                   </p>
+                  <Badge variant="secondary" className="font-normal">
+                    Unsaved
+                  </Badge>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={handleClear}
-                className="text-muted-foreground"
-              >
-                Remove
-              </Button>
-            </div>
-          )}
 
-          <Button
-            className="w-full"
-            size="lg"
-            disabled={!selectedFile || isOpening}
-            onClick={handleProcess}
-          >
-            {isOpening ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <ArrowRight className="ml-1 size-4" />
-            )}
-            {isOpening ? "Opening..." : "Open RFI"}
-          </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDeleteLocal}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="mr-1 size-4" />
+                  Delete
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleContinueLocal}
+                >
+                  Continue
+                  <ArrowRight className="ml-1 size-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* ──────────────────────────────────────────────────────────
+               No local draft. Render ONLY the Dropzone + selection UI.
+               ────────────────────────────────────────────────────────── */
+            <>
+              <FileUpload
+                onDrop={handleDrop}
+                accept={{
+                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+                  "application/vnd.ms-excel": [".xls"],
+                }}
+                title="Drag & drop your RFI file here, or click to browse"
+                description="XLSX or XLS format"
+              />
+
+              {selectedFile && (
+                <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+                      <FileSpreadsheet className="size-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{selectedFile.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={handleClear}
+                    className="text-muted-foreground"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={!selectedFile || isOpening}
+                onClick={handleProcess}
+              >
+                {isOpening ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <ArrowRight className="ml-1 size-4" />
+                )}
+                {isOpening ? "Opening..." : "Open RFI"}
+              </Button>
+            </>
+          )}
         </CardContent>
 
         <CardFooter>

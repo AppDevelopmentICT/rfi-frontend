@@ -8,7 +8,7 @@ import { useExcelStore } from "@/store/useExcelStore";
 import { EditorHeader } from "@/components/editor/EditorHeader";
 import { ExcelTable } from "@/components/editor/ExcelTable";
 import { useAutoFillMutation, useRegenerateRfiRowMutation } from "@/hooks/useRFIQueries";
-import { exportRfiExcel } from "@/services/rfi.service";
+import { exportRfiExcel, regenerateRfiRow } from "@/services/rfi.service";
 import { useState } from "react";
 import type { RFIProjectResponse } from "@/services/rfi.service";
 
@@ -60,11 +60,19 @@ export function RFIEditor({
   const [isExporting, setIsExporting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // BUG 3 FIX: Dedicated flag for the "Regenerate All" flow. We cannot reuse
+  // the auto-fill mutation's `isPending` because the parent gates `isGenerating`
+  // on `!isCompleted`, which makes the loading state invisible once the
+  // workbook has already been generated (which is exactly when this button
+  // is shown).
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratingRows, setRegeneratingRows] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    onRegeneratingChange?.(regeneratingRows.size > 0);
-  }, [regeneratingRows.size, onRegeneratingChange]);
+    // Treat both per-row regeneration AND the full "Regenerate All" flow as
+    // "regenerating" so the parent page can keep the lock/edit UI coherent.
+    onRegeneratingChange?.(regeneratingRows.size > 0 || isRegenerating);
+  }, [regeneratingRows.size, isRegenerating, onRegeneratingChange]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -186,37 +194,129 @@ export function RFIEditor({
   );
 
   const handleRegenerateAll = useCallback(async () => {
-    let uploadFile = file;
+    // BUG 3 FIX: Mark the regeneration in-flight so the header button can
+    // disable itself and show a spinner for the entire duration (save + loop).
+    if (isRegenerating) return;
 
-    if (!uploadFile && fileBase64 && fileName) {
-      try {
-        const res = await fetch(fileBase64);
-        const blob = await res.blob();
-        uploadFile = new File([blob], fileName, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      } catch {
-        console.error("Failed to reconstruct file from base64");
-      }
-    }
-
-    if (!uploadFile) {
-      toast.error("Original workbook is unavailable. Go back to upload and open the file again.");
+    const docId = document?.documentId || activeJob?.id;
+    if (!docId) {
+      toast.error("Document not ready for regeneration.");
       return;
     }
 
-    mutate(
-      { file: uploadFile },
-      {
-        onSuccess: (data) => {
-          if (data.excelData) {
-            setExcelData(data.excelData);
-          }
-          if (data.documentId) {
-            router.push(`/rfi/${data.documentId}`);
-          }
-        },
+    setIsRegenerating(true);
+
+    try {
+      // BUG 2 FIX (part 1): Flush local edits BEFORE regenerating so the
+      // backend reads the user's latest edited questions from the DB. The
+      // /regenerate-row endpoint merges `currentRow` from the request on top
+      // of `doc.json_data`, but `context_columns` may live in other rows /
+      // sheets that we don't send per-call — so a real save is required for
+      // correctness.
+      if (isDirty && onSaveChanges) {
+        try {
+          setIsSaving(true);
+          await onSaveChanges();
+          setIsDirty(false);
+        } catch {
+          toast.error("Failed to save pending edits before regenerating.");
+          return;
+        } finally {
+          setIsSaving(false);
+        }
       }
-    );
-  }, [file, fileBase64, fileName, mutate, router, setExcelData]);
+
+      // BUG 2 FIX (part 2): Mirror the WORKING single-row flow. There is no
+      // backend `regenerate-all` endpoint — the old code called `/auto-fill`
+      // with the ORIGINAL uploaded file, which (a) ignored the saved/edited
+      // questions, and (b) created a brand-new document, throwing away the
+      // current one. Instead, we now loop over every visible sheet/row and
+      // reuse the same `/regenerate-row` endpoint that already works
+      // correctly for single rows. Same payload shape, same response
+      // handling, same state updates -> same correct behaviour.
+      const excelStateBefore = useExcelStore.getState();
+      const excelData = excelStateBefore.excelData;
+      if (!excelData) {
+        toast.error("No workbook data is loaded.");
+        return;
+      }
+
+      // Exclude internal sheets (e.g. "_column_info") just like the UI does.
+      const visibleSheets = Object.keys(excelData).filter(
+        (name) => !name.startsWith("_")
+      );
+
+      let totalRegenerated = 0;
+      let totalFailed = 0;
+
+      for (const sheet of visibleSheets) {
+        const rows = excelData[sheet]?.data ?? [];
+        for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+          // Re-read the row from the store at iteration time so the request
+          // includes the latest cell values (matches single-row regen logic
+          // exactly).
+          const liveState = useExcelStore.getState();
+          const currentRow = liveState.excelData?.[sheet]?.data?.[rowIdx] as
+            | Record<string, string>
+            | undefined;
+
+          // Show per-row spinner for visual feedback during the loop.
+          setRegeneratingRows((prev) => new Set(prev).add(rowIdx));
+
+          try {
+            // NOTE: We call the service function directly (not
+            // `regenerateRowMutation.mutateAsync`) to bypass the mutation's
+            // global `onError` toast — otherwise every empty/header row that
+            // legitimately returns 400 would spam the user with error toasts.
+            const result = await regenerateRfiRow(docId, sheet, rowIdx, currentRow);
+            // Same cell-by-cell update as the working single-row handler.
+            const store = useExcelStore.getState();
+            for (const [col, val] of Object.entries(result.updatedRow)) {
+              store.updateCell(sheet, rowIdx, col, String(val));
+            }
+            totalRegenerated++;
+          } catch (err) {
+            // Backend returns 400 "No data found in this row to regenerate
+            // from" for empty/header rows — that's expected, just skip it.
+            console.warn(`Regenerate skipped sheet=${sheet} row=${rowIdx}`, err);
+            totalFailed++;
+          } finally {
+            setRegeneratingRows((prev) => {
+              const next = new Set(prev);
+              next.delete(rowIdx);
+              return next;
+            });
+          }
+        }
+      }
+
+      if (totalRegenerated > 0) {
+        // Mark the workbook dirty so the user can save the freshly
+        // regenerated answers, mirroring the single-row flow.
+        setIsDirty(true);
+        toast.success(
+          totalFailed > 0
+            ? `Regenerated ${totalRegenerated} rows (${totalFailed} skipped).`
+            : `Regenerated ${totalRegenerated} rows.`
+        );
+      } else {
+        toast.error("No rows could be regenerated.");
+      }
+    } catch (err) {
+      console.error("Regenerate all failed", err);
+      toast.error("Failed to regenerate answers.");
+    } finally {
+      // Clear any per-row spinners that might still be set if we threw mid-loop.
+      setRegeneratingRows(new Set());
+      setIsRegenerating(false);
+    }
+  }, [
+    isRegenerating,
+    isDirty,
+    onSaveChanges,
+    document?.documentId,
+    activeJob?.id,
+  ]);
 
   const displayTitle = document?.fileName || activeJob?.filename || fileName || rfiId;
   const isCompleted = activeJob?.status === "completed" || document?.status === "completed";
@@ -228,7 +328,7 @@ export function RFIEditor({
       <EditorHeader
         title={`RFI Project - ${displayTitle}`}
         questionCount={0}
-        isGeneratingAll={isGenerating || isExporting || isSaving || isLocking || isUnlocking}
+        isGeneratingAll={isGenerating || isExporting || isSaving || isLocking || isUnlocking || isRegenerating}
         generateAllLabel="Auto-fill Excel"
         generatingLabel={isSaving ? "Saving..." : isExporting ? "Exporting..." : isLocking ? "Acquiring lock..." : isUnlocking ? "Releasing lock..." : "Filling workbook..."}
         onGenerateAll={handleAutoFillExcel}
@@ -238,6 +338,7 @@ export function RFIEditor({
         onForceUnlock={canForceUnlock ? onForceUnlock : undefined}
         onExport={handleExport}
         onRegenerateAll={isCompleted ? handleRegenerateAll : undefined}
+        isRegenerating={isRegenerating}
         showGenerate={shouldShowGenerate}
         isEditing={isEditing}
         isDirty={isDirty}

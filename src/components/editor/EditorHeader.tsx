@@ -19,6 +19,12 @@ interface EditorHeaderProps {
   onForceUnlock?: () => void;
   onExport?: () => void;
   onRegenerateAll?: () => void;
+  /**
+   * BUG 3 FIX: dedicated flag for the "Regenerate All" button so it can show
+   * its own loading/disabled state independently of the broader
+   * `isGeneratingAll` flag (which also covers save/export/lock states).
+   */
+  isRegenerating?: boolean;
   saveLabel?: string;
   showGenerate?: boolean;
   isEditing?: boolean;
@@ -41,6 +47,7 @@ export function EditorHeader({
   onForceUnlock,
   onExport,
   onRegenerateAll,
+  isRegenerating = false,
   saveLabel = "Save Changes",
   showGenerate = true,
   isEditing = false,
@@ -49,6 +56,14 @@ export function EditorHeader({
   isLocking = false,
   isUnlocking = false,
 }: EditorHeaderProps) {
+  // BUG 3 DEBUG: Verify the regenerate state is reaching this component.
+  // Expected: logs `false` initially, then `true` for the entire duration of
+  // the "Regenerate All" loop, then `false` again when finished.
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.log("[EditorHeader] isRegenerating:", isRegenerating, "| isGeneratingAll:", isGeneratingAll);
+  }
+
   return (
     <div className="flex shrink-0 items-center justify-between border-b bg-background/95 px-6 py-3 backdrop-blur-sm">
       <div className="flex items-center gap-3">
@@ -92,15 +107,20 @@ export function EditorHeader({
             variant="outline"
             size="sm"
             onClick={onRegenerateAll}
-            disabled={isGeneratingAll}
+            // BUG 3 FIX: Disable the button while any long-running action is in
+            // flight (so spam-clicks during save/export/lock are also blocked),
+            // but the spinner + "Regenerating..." label is only shown when the
+            // regenerate flow itself is running.
+            disabled={isGeneratingAll || isRegenerating}
             className="gap-1.5 text-muted-foreground"
+            aria-busy={isRegenerating}
           >
-            {isGeneratingAll ? (
+            {isRegenerating ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <RefreshCw className="size-4" />
             )}
-            {isGeneratingAll ? "Regenerating..." : "Regenerate All"}
+            {isRegenerating ? "Regenerating..." : "Regenerate All"}
           </Button>
         )}
         {showGenerate && (

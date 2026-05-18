@@ -33,7 +33,12 @@ export function ColumnPickerModal({
   excelData,
   fileName,
 }: ColumnPickerModalProps) {
-  const sheetNames = Object.keys(excelData);
+  // BUG 1 FIX: Exclude internal/metadata sheets (e.g. "_column_info") that the
+  // parser injects into excelData. Any sheet whose name starts with "_" is
+  // backend metadata and must never be shown as a selectable tab.
+  const sheetNames = Object.keys(excelData).filter(
+    (name) => !name.startsWith("_")
+  );
   const [activeSheet, setActiveSheet] = useState(sheetNames[0] ?? "");
   const [selections, setSelections] = useState<Record<string, string>>({});
 
