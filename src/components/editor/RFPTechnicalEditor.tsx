@@ -15,8 +15,7 @@ import {
   X,
   AlertTriangle,
   Loader2,
-  Lightbulb,
-  ZoomIn,
+  History,
   PanelRightOpen,
   PanelRightClose,
   ChevronDown,
@@ -602,13 +601,11 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 transition-[gap] duration-300 ease-in-out",
-        isPanelOpen
-          ? "gap-3"
-          : "gap-0",
+        "flex h-full min-h-0 transition-all duration-300 ease-in-out",
+        isPanelOpen ? "gap-3" : "gap-0",
       )}
     >
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out">
         <Card className="flex min-h-0 flex-1 flex-col rounded-none border-x-0 border-t-0 border-border/70 shadow-none">
           <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b px-5 py-2">
             <div className="min-w-0">
@@ -764,11 +761,25 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         </Card>
       </div>
 
-      {isPanelOpen && (
       <div
-        className="flex w-[320px] shrink-0 min-h-0 flex-col gap-3 animate-in fade-in slide-in-from-right-2 duration-300"
+        aria-hidden={!isPanelOpen}
+        className={cn(
+          "flex h-full min-h-0 shrink-0 flex-col gap-3 overflow-hidden transition-all duration-300 ease-in-out",
+          isPanelOpen
+            ? "w-[320px] opacity-100"
+            : "w-0 opacity-0 pointer-events-none",
+        )}
       >
-        <Collapsible open={isChatOpen} onOpenChange={setIsChatOpen} className="flex h-[56vh] min-h-[420px] max-h-[62vh] flex-col rounded-lg border border-border/70 bg-card shadow-sm">
+        <Collapsible
+          open={isChatOpen}
+          onOpenChange={setIsChatOpen}
+          className={cn(
+            "flex flex-col rounded-lg border border-border/70 bg-card shadow-sm overflow-hidden transition-[flex-grow,flex-shrink,flex-basis,height] duration-300 ease-in-out",
+            isChatOpen
+              ? "flex-1 min-h-0"
+              : "flex-none h-auto",
+          )}
+        >
           <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-3 py-2 text-left transition-colors hover:bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-base">
               <MessageSquare className="size-4 text-muted-foreground" />
@@ -786,7 +797,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-4">
-            <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="flex flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {messages.length === 0 && (
               <div className="rounded-lg border border-dashed bg-muted/30 p-5 text-sm text-muted-foreground">
                 Ask the AI to draft Bab 3 (Detail Produk) for{" "}
@@ -796,26 +807,33 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
             )}
             {messages.map((message, index) => {
               const isOptimistic = pendingMessage !== null && index === messages.length - 1 && message.role === "user" && message.content === pendingMessage;
+              const isUser = message.role === "user";
+              const isAssistant = message.role === "assistant";
               return (
               <div
                 key={`${message.created_at || index}-${message.role}-${index}`}
                 className={cn(
-                  "rounded-2xl px-3 py-2 text-sm transition-all duration-200",
-                  message.role === "user"
-                    ? "ml-6 bg-muted/60"
-                    : "mr-6 border bg-muted/40",
+                  "max-w-[85%] px-3 py-2 text-sm shadow-sm transition-all duration-300 ease-in-out",
+                  isUser
+                    // User: right-aligned, primary bg, sharp bottom-right corner
+                    ? "self-end bg-primary text-primary-foreground rounded-2xl rounded-br-sm"
+                    : isAssistant
+                      // AI Assistant: left-aligned, muted bg, sharp top-left corner
+                      ? "self-start bg-muted text-foreground rounded-2xl rounded-tl-sm border border-border/60"
+                      // System / fallback: centered neutral
+                      : "self-center bg-muted/40 text-muted-foreground rounded-2xl border border-dashed",
                   isOptimistic && "animate-pulse opacity-70",
                 )}
               >
                 <div
                   className={cn(
                     "mb-1 text-[10px] uppercase tracking-wide",
-                    "text-muted-foreground",
+                    isUser ? "text-primary-foreground/80" : "text-muted-foreground",
                   )}
                 >
-                  {message.role === "user"
+                  {isUser
                     ? message.user?.name || "You"
-                    : message.role === "assistant"
+                    : isAssistant
                       ? "AI Assistant"
                       : "System"}
                 </div>
@@ -825,7 +843,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                     iso={message.created_at}
                     className={cn(
                       "mt-1 block text-[10px]",
-                      "text-muted-foreground",
+                      isUser ? "text-primary-foreground/70" : "text-muted-foreground",
                     )}
                   />
                 )}
@@ -833,7 +851,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
             );
             })}
               {stream.isStreaming && (
-                <div className="mr-6 rounded-2xl border bg-muted/40 px-3 py-2 text-sm">
+                <div className="self-start max-w-[85%] rounded-2xl rounded-tl-sm border border-border/60 bg-muted px-3 py-2 text-sm shadow-sm transition-all duration-300 ease-in-out">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Sparkles className="size-3.5" />
                     <span className="text-[11px] uppercase tracking-wide">AI typing</span>
@@ -865,21 +883,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 disabled={isBusy || Boolean(project.is_locked_by_other)}
                 className="min-h-20 resize-none"
               />
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-xs"
-                  onClick={() =>
-                    setPrompt(
-                      `Buat Bab 3 detail produk untuk ${project.product} dalam Bahasa Indonesia, sesuai dokumen pengetahuan.`,
-                    )
-                  }
-                  disabled={isBusy || Boolean(project.is_locked_by_other)}
-                >
-                  <Lightbulb className="size-3.5" />
-                  Suggest
-                </Button>
+              <div className="mt-2 flex items-center justify-end">
                 <Button
                   variant="outline"
                   onClick={handlePrompt}
@@ -904,7 +908,12 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
         <Collapsible
           open={isTimelineAccordionOpen}
           onOpenChange={setIsTimelineAccordionOpen}
-          className="flex min-h-0 flex-1 flex-col rounded-lg border border-border/70 bg-card shadow-sm"
+          className={cn(
+            "flex flex-col rounded-lg border border-border/70 bg-card shadow-sm overflow-hidden transition-[flex-grow,flex-shrink,flex-basis,height] duration-300 ease-in-out",
+            isTimelineAccordionOpen
+              ? "flex-1 min-h-0"
+              : "flex-none h-auto",
+          )}
         >
           <CollapsibleTrigger className="group flex flex-row items-center justify-between gap-3 border-b px-3 py-2 text-left transition-colors hover:bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -929,7 +938,7 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
                 }}
                 title="Open full timeline"
               >
-                <ZoomIn className="size-4" />
+                <History className="size-4" />
                 <span className="sr-only">Open full timeline</span>
               </span>
               <ChevronDown className={cn(
@@ -943,7 +952,6 @@ export function RFPTechnicalEditor({ rfpId, autoGenerate = false }: RFPTechnical
           </CollapsibleContent>
         </Collapsible>
       </div>
-      )}
 
       <Sheet open={isTimelineOpen} onOpenChange={setIsTimelineOpen}>
         <SheetContent side="right" className="w-[92vw] sm:max-w-3xl p-0">
