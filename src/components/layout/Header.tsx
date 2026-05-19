@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command as CommandPrimitive } from "cmdk";
 import {
@@ -55,7 +55,9 @@ export function Header() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [selectedValue, setSelectedValue] = useState("");
   const [isMac] = useState(isMacOS);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
@@ -67,6 +69,37 @@ export function Header() {
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
   }, []);
+
+  // ISSUE 1 FIX: Force-focus the input every time the modal opens.
+  // `autoFocus` alone is insufficient because the modal stays mounted
+  // (only opacity/pointer-events toggle), so the input never re-mounts.
+  useEffect(() => {
+    if (!open) {
+      // Reset query when closing so the next open starts clean.
+      setQuery("");
+      return;
+    }
+    // Use rAF to ensure the element is actually interactive after the
+    // pointer-events/opacity transition flips on.
+    const raf = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
+
+  // ISSUE 3 FIX: When the user is typing, force the dynamic
+  // `search:<query>` item to be the selected (highlighted) item so that
+  // pressing Enter triggers the global search rather than the first
+  // static link. When the query is empty, let cmdk pick the default
+  // (first static item).
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed) {
+      setSelectedValue(`search:${trimmed}`);
+    } else {
+      setSelectedValue("");
+    }
+  }, [query]);
 
   const shortcutLabel = isMac ? "⌘" : "Ctrl";
   const isAdmin = !!user?.is_admin;
@@ -132,6 +165,8 @@ export function Header() {
       >
         <CommandPrimitive
           shouldFilter
+          value={selectedValue || undefined}
+          onValueChange={setSelectedValue}
           className={cn(
             "w-full max-w-2xl overflow-hidden rounded-2xl border border-border/80 bg-popover text-popover-foreground shadow-2xl shadow-black/20 transition-all duration-200",
             open ? "translate-y-0 scale-100 opacity-100" : "-translate-y-3 scale-[0.98] opacity-0",
@@ -140,34 +175,50 @@ export function Header() {
           <div className="flex items-center border-b px-4">
             <Search className="mr-3 size-4 text-muted-foreground" />
             <CommandPrimitive.Input
+              ref={inputRef}
               value={query}
               onValueChange={setQuery}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && query.trim()) runSearch();
-                if (event.key === "Escape") setOpen(false);
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setOpen(false);
+                }
               }}
               autoFocus
-              placeholder="Cari dokumen, bab RFP, atau aksi cepat..."
+              placeholder="Search documents, RFP chapters, or quick actions..."
               className="h-13 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             <kbd className="hidden items-center gap-1 rounded-md border border-border/70 bg-muted px-2 py-1 font-mono text-[10px] font-medium text-muted-foreground shadow-sm sm:flex">Esc</kbd>
           </div>
 
           <CommandPrimitive.List className="max-h-[420px] overflow-y-auto p-2">
+            {/* ISSUE 3 FIX: Render the dynamic search action in its own
+                group BEFORE all static groups whenever the user is
+                typing. Combined with the controlled `selectedValue`
+                above, this guarantees Enter triggers the global search. */}
             {query.trim() && (
-              <CommandPrimitive.Item
-                value={`search ${query}`}
-                onSelect={runSearch}
-                className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm outline-none transition-colors aria-selected:bg-muted"
+              <CommandPrimitive.Group
+                className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
+                heading="Global Search"
               >
-                <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Search className="size-4" />
-                </div>
-                <div>
-                  <p className="font-medium">Search “{query.trim()}”</p>
-                  <p className="text-xs text-muted-foreground">Cari di RFI, RFP, dan Knowledge Base</p>
-                </div>
-              </CommandPrimitive.Item>
+                <CommandPrimitive.Item
+                  value={`search:${query.trim()}`}
+                  // Always keep this item in the filtered results,
+                  // regardless of the user's query, so it can be the
+                  // default Enter target.
+                  keywords={[query.trim(), "search", "global"]}
+                  onSelect={runSearch}
+                  className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm outline-none transition-colors aria-selected:bg-muted"
+                >
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Search className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">Search &ldquo;{query.trim()}&rdquo;</p>
+                    <p className="truncate text-xs text-muted-foreground">Search in RFI, RFP, and Knowledge Base</p>
+                  </div>
+                </CommandPrimitive.Item>
+              </CommandPrimitive.Group>
             )}
 
             <CommandPrimitive.Empty className="py-10 text-center text-sm text-muted-foreground">No command found.</CommandPrimitive.Empty>
