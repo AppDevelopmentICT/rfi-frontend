@@ -20,9 +20,9 @@ ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 # Build Next.js application
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 7777
 
-ENV PORT=3000
+ENV PORT=7777
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["npm", "start"]
