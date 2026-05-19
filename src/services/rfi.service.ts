@@ -4,6 +4,20 @@ import { apiClient } from "@/lib/axios";
 import type { ExcelData } from "@/types/excel";
 
 // ---------------------------------------------------------------------------
+// GET /v1/rfi/models — fetch available Ollama models
+// ---------------------------------------------------------------------------
+
+export interface OllamaModelsResponse {
+  models: string[];
+  defaultModel: string;
+}
+
+export async function fetchOllamaModels(): Promise<OllamaModelsResponse> {
+  const { data } = await apiClient.get<OllamaModelsResponse>("/v1/rfi/models");
+  return data;
+}
+
+// ---------------------------------------------------------------------------
 // POST /v1/rfi/read — upload Excel, get parsed sheets as JSON
 // ---------------------------------------------------------------------------
 
@@ -218,11 +232,12 @@ export async function regenerateRfiRow(
   documentId: string,
   sheet: string,
   rowIdx: number,
-  currentRow?: Record<string, string>
+  currentRow?: Record<string, string>,
+  model?: string
 ): Promise<RegenerateRowResult> {
   const { data } = await apiClient.post<RegenerateRowResult>(
     `/v1/rfi/${documentId}/regenerate-row`,
-    { sheet, rowIdx, currentRow }
+    { sheet, rowIdx, currentRow, model: model || undefined }
   );
   return data;
 }

@@ -71,12 +71,13 @@ interface RegenerateRowParams {
   sheet: string;
   rowIdx: number;
   currentRow?: Record<string, string>;
+  model?: string;
 }
 
 export function useRegenerateRfiRowMutation() {
   return useMutation<RegenerateRowResult, Error, RegenerateRowParams>({
-    mutationFn: ({ documentId, sheet, rowIdx, currentRow }) =>
-      regenerateRfiRow(documentId, sheet, rowIdx, currentRow),
+    mutationFn: ({ documentId, sheet, rowIdx, currentRow, model }) =>
+      regenerateRfiRow(documentId, sheet, rowIdx, currentRow, model),
     retry: false,
     onError: () => {
       toast.error("Failed to regenerate answer.");

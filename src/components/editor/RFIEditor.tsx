@@ -84,7 +84,7 @@ export function RFIEditor({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  const handleAutoFillExcel = useCallback(async () => {
+  const handleAutoFillExcel = useCallback(async (model?: string) => {
     let uploadFile = file;
     
     if (!uploadFile && fileBase64 && fileName) {
@@ -105,7 +105,7 @@ export function RFIEditor({
     }
 
     mutate(
-      { file: uploadFile },
+      { file: uploadFile, options: model ? { model } : undefined },
       {
         onSuccess: (data) => {
           if (data.excelData) {
@@ -193,7 +193,7 @@ export function RFIEditor({
     [document?.documentId, activeJob?.id, regenerateRowMutation]
   );
 
-  const handleRegenerateAll = useCallback(async () => {
+  const handleRegenerateAll = useCallback(async (model?: string) => {
     // BUG 3 FIX: Mark the regeneration in-flight so the header button can
     // disable itself and show a spinner for the entire duration (save + loop).
     if (isRegenerating) return;
@@ -268,7 +268,7 @@ export function RFIEditor({
             // `regenerateRowMutation.mutateAsync`) to bypass the mutation's
             // global `onError` toast — otherwise every empty/header row that
             // legitimately returns 400 would spam the user with error toasts.
-            const result = await regenerateRfiRow(docId, sheet, rowIdx, currentRow);
+            const result = await regenerateRfiRow(docId, sheet, rowIdx, currentRow, model);
             // Same cell-by-cell update as the working single-row handler.
             const store = useExcelStore.getState();
             for (const [col, val] of Object.entries(result.updatedRow)) {
