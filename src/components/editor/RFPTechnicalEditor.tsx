@@ -48,9 +48,16 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { UserPill } from "@/components/shared/UserPill";
+import { ModelSelectionDialog } from "@/components/shared/ModelSelectionDialog";
+import { useModelSelection } from "@/hooks/useModelSelection";
 import { markdownToHtml } from "@/lib/markdown";
 import { useRFPStream } from "@/hooks/useRFPStream";
 import { useAuth } from "@/contexts/auth-context";
@@ -233,6 +240,8 @@ function RFPTechnicalEditorInner({
   const autoGenerateStartedRef = useRef(false);
   const backgroundFallbackStartedRef = useRef(false);
   const lastGenerationRef = useRef<LastGenerationRequest | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined);
+  const modelSelection = useModelSelection();
 
   // ---------------------------------------------------------------------------
   // Tiptap editor — initialized SYNCHRONOUSLY with the project's saved content.
@@ -613,6 +622,7 @@ function RFPTechnicalEditorInner({
 
     const currentContent = editor?.getText().trim() || "";
     const product = (projectRef.current ?? project).product;
+    const model = selectedModel;
 
     if (currentContent) {
       lastGenerationRef.current = {
@@ -622,12 +632,12 @@ function RFPTechnicalEditorInner({
       };
       backgroundFallbackStartedRef.current = false;
       setIsAdjusting(true);
-      stream.adjust(product, currentContent, userPrompt);
+      stream.adjust(product, currentContent, userPrompt, model);
     } else {
       lastGenerationRef.current = { adjust: false };
       backgroundFallbackStartedRef.current = false;
       setIsAdjusting(false);
-      stream.generate(product);
+      stream.generate(product, { model });
     }
 
     (async () => {
@@ -754,6 +764,17 @@ function RFPTechnicalEditorInner({
   }
 
   return (
+    <>
+    <ModelSelectionDialog
+      modelSelection={modelSelection}
+      title="Select AI Model"
+      description="Choose the Ollama model for generating RFP content."
+      confirmLabel="Select"
+      onConfirm={(model) => {
+        setSelectedModel(model);
+        toast.success(`Model set to ${model}`);
+      }}
+    />
     <div
       className={cn(
         "flex h-full min-h-0 transition-all duration-300 ease-in-out",
@@ -1094,7 +1115,23 @@ function RFPTechnicalEditorInner({
                 disabled={isBusy || Boolean(project.is_locked_by_other)}
                 className="min-h-20 resize-none"
               />
-              <div className="mt-2 flex items-center justify-end">
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => modelSelection.openDialog()}
+                        className="gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <Sparkles className="size-3.5" />
+                        {selectedModel || "Default model"}
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>Select AI model for generation</TooltipContent>
+                </Tooltip>
                 <Button
                   variant="outline"
                   onClick={handlePrompt}
@@ -1205,7 +1242,8 @@ function RFPTechnicalEditorInner({
             {renderTimelineItems()}
           </div>
         </SheetContent>
-      </Sheet>
-    </div>
+       </Sheet>
+     </div>
+    </>
   );
 }

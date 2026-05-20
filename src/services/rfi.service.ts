@@ -3,19 +3,8 @@ import axios, { type AxiosError } from "axios";
 import { apiClient } from "@/lib/axios";
 import type { ExcelData } from "@/types/excel";
 
-// ---------------------------------------------------------------------------
-// GET /v1/rfi/models — fetch available Ollama models
-// ---------------------------------------------------------------------------
-
-export interface OllamaModelsResponse {
-  models: string[];
-  defaultModel: string;
-}
-
-export async function fetchOllamaModels(): Promise<OllamaModelsResponse> {
-  const { data } = await apiClient.get<OllamaModelsResponse>("/v1/rfi/models");
-  return data;
-}
+// Re-export from shared ollama service for backward compatibility
+export { fetchOllamaModels, type OllamaModelsResponse } from "./ollama.service";
 
 // ---------------------------------------------------------------------------
 // POST /v1/rfi/read — upload Excel, get parsed sheets as JSON

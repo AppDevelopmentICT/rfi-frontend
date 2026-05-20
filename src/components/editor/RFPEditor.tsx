@@ -66,7 +66,7 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
     [rfpId, setQuestionStatus, updateAnswer, updateSources, regenerateMutation]
   );
 
-  const handleGenerateAll = useCallback(() => {
+  const handleGenerateAll = useCallback((model?: string) => {
     setGeneratingAll(true);
 
     const targetIds = questions
@@ -76,7 +76,7 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
     targetIds.forEach((id) => setQuestionStatus(id, "generating"));
 
     generateAllMutation.mutate(
-      { documentId: rfpId, questions },
+      { documentId: rfpId, questions, model },
       {
         onSuccess: (data) => {
           const resultIds = new Set(data.results.map((r) => r.id));
@@ -121,6 +121,52 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
     toast.info("Export functionality coming soon");
   }, []);
 
+  const handleRegenerateAll = useCallback((model?: string) => {
+    setGeneratingAll(true);
+
+    const targetIds = questions
+      .filter((q) => q.status !== "generating")
+      .map((q) => q.id);
+
+    targetIds.forEach((id) => setQuestionStatus(id, "generating"));
+
+    generateAllMutation.mutate(
+      { documentId: rfpId, questions, model },
+      {
+        onSuccess: (data) => {
+          const resultIds = new Set(data.results.map((r) => r.id));
+          bulkUpdateAnswers(data.results);
+
+          const failedIds = targetIds.filter((id) => !resultIds.has(id));
+          failedIds.forEach((id) => setQuestionStatus(id, "idle"));
+
+          setGeneratingAll(false);
+
+          if (failedIds.length === 0) {
+            toast.success(
+              `All ${data.results.length} answers regenerated successfully`
+            );
+          } else {
+            toast.warning(
+              `${data.results.length} answers regenerated. ${failedIds.length} failed — please retry them individually.`
+            );
+          }
+        },
+        onError: () => {
+          targetIds.forEach((id) => setQuestionStatus(id, "idle"));
+          setGeneratingAll(false);
+        },
+      }
+    );
+  }, [
+    rfpId,
+    questions,
+    setGeneratingAll,
+    setQuestionStatus,
+    bulkUpdateAnswers,
+    generateAllMutation,
+  ]);
+
   return (
     <div className="flex h-full flex-col bg-muted/40">
       <EditorHeader
@@ -128,6 +174,7 @@ export function RFPEditor({ rfpId }: RFPEditorProps) {
         questionCount={questions.length}
         isGeneratingAll={isGeneratingAll}
         onGenerateAll={handleGenerateAll}
+        onRegenerateAll={handleRegenerateAll}
         onSave={handleSave}
         onExport={handleExport}
       />

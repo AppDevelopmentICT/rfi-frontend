@@ -1,26 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { Sparkles, Download, Loader2, Save, Pencil, X, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { fetchOllamaModels } from "@/services/rfi.service";
+import { ModelSelectionDialog } from "@/components/shared/ModelSelectionDialog";
+import { useModelSelection } from "@/hooks/useModelSelection";
 
 interface EditorHeaderProps {
   title: string;
@@ -67,66 +51,8 @@ export function EditorHeader({
   isLocking = false,
   isUnlocking = false,
 }: EditorHeaderProps) {
-  const [isModelDialogOpen, setIsModelDialogOpen] = useState(false);
-  const [isRegenDialogOpen, setIsRegenDialogOpen] = useState(false);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [defaultModel, setDefaultModel] = useState<string>("");
-  const [selectedModel, setSelectedModel] = useState<string>("");
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"generate" | "regenerate">("generate");
-
-  const loadModels = useCallback(async () => {
-    setIsLoadingModels(true);
-    try {
-      const res = await fetchOllamaModels();
-      const allModels = res.models || [];
-      const def = res.defaultModel || "";
-      const ordered = def
-        ? [def, ...allModels.filter((m) => m !== def)]
-        : allModels;
-      setAvailableModels(ordered);
-      setDefaultModel(def);
-      if (!selectedModel && def) {
-        setSelectedModel(def);
-      }
-    } catch {
-      toast.error("Failed to fetch Ollama models. Is Ollama running?");
-    } finally {
-      setIsLoadingModels(false);
-    }
-  }, [selectedModel]);
-
-  const handleOpenGenerateDialog = () => {
-    setDialogMode("generate");
-    setIsModelDialogOpen(true);
-    loadModels();
-  };
-
-  const handleOpenRegenDialog = () => {
-    setDialogMode("regenerate");
-    setIsRegenDialogOpen(true);
-    loadModels();
-  };
-
-  const handleConfirm = () => {
-    if (dialogMode === "generate") {
-      setIsModelDialogOpen(false);
-      onGenerateAll(selectedModel || undefined);
-    } else {
-      setIsRegenDialogOpen(false);
-      onRegenerateAll?.(selectedModel || undefined);
-    }
-  };
-
-  const handleDialogClose = () => {
-    if (dialogMode === "generate") {
-      setIsModelDialogOpen(false);
-    } else {
-      setIsRegenDialogOpen(false);
-    }
-  };
-
-  const isDialogOpen = dialogMode === "generate" ? isModelDialogOpen : isRegenDialogOpen;
+  const generateModelSel = useModelSelection();
+  const regenModelSel = useModelSelection();
 
   return (
     <>
@@ -171,7 +97,7 @@ export function EditorHeader({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleOpenRegenDialog}
+              onClick={() => regenModelSel.openDialog()}
               disabled={isGeneratingAll || isRegenerating}
               className="gap-1.5 text-muted-foreground"
               aria-busy={isRegenerating}
@@ -188,7 +114,7 @@ export function EditorHeader({
             <Button
               variant="default"
               size="sm"
-              onClick={handleOpenGenerateDialog}
+              onClick={() => generateModelSel.openDialog()}
               disabled={isGeneratingAll}
             >
               {isGeneratingAll ? (
@@ -202,62 +128,23 @@ export function EditorHeader({
         </div>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={(open: boolean) => { if (!open) handleDialogClose(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {dialogMode === "generate" ? "Start Auto-fill" : "Regenerate All Answers"}
-            </DialogTitle>
-            <DialogDescription>
-              {dialogMode === "generate"
-                ? "Select the AI model you want to use to generate answers for this workbook."
-                : "Select the AI model you want to use to regenerate all answers."}
-            </DialogDescription>
-          </DialogHeader>
+      <ModelSelectionDialog
+        modelSelection={generateModelSel}
+        title="Start Auto-fill"
+        description="Select the AI model you want to use to generate answers for this workbook."
+        confirmLabel="Confirm & Generate"
+        onConfirm={onGenerateAll}
+      />
 
-          <div className="py-2">
-            {isLoadingModels ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading models...
-              </div>
-            ) : availableModels.length === 0 ? (
-              <div className="text-sm text-destructive">
-                No models found. Make sure Ollama is running and has models installed.
-              </div>
-            ) : (
-              <Select
-                value={selectedModel}
-                onValueChange={(val) => { if (val) setSelectedModel(val); }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent side="bottom" sideOffset={4} align="center">
-                  {availableModels.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}{model === defaultModel ? " (Default)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={handleDialogClose}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleConfirm}
-              disabled={isLoadingModels || availableModels.length === 0}
-            >
-              {dialogMode === "generate" ? "Confirm & Generate" : "Confirm & Regenerate"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {onRegenerateAll && (
+        <ModelSelectionDialog
+          modelSelection={regenModelSel}
+          title="Regenerate All Answers"
+          description="Select the AI model you want to use to regenerate all answers."
+          confirmLabel="Confirm & Regenerate"
+          onConfirm={onRegenerateAll}
+        />
+      )}
     </>
   );
 }

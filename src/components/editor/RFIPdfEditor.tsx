@@ -57,6 +57,8 @@ import {
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { UserPill } from "@/components/shared/UserPill";
+import { ModelSelectionDialog } from "@/components/shared/ModelSelectionDialog";
+import { useModelSelection } from "@/hooks/useModelSelection";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import { pb } from "@/lib/pocketbase";
@@ -163,6 +165,7 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
   );
   const wsRef = useRef<WebSocket | null>(null);
   const regenAbortRef = useRef<AbortController | null>(null);
+  const modelSelection = useModelSelection();
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -536,14 +539,18 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
     }
   }, [documentId, editor, entityRefs]);
 
-  const handleRegenerate = useCallback(async () => {
+  const handleRegenerate = useCallback(() => {
+    modelSelection.openDialog();
+  }, [modelSelection]);
+
+  const executeRegenerate = useCallback(async (model: string) => {
     if (!project) return;
     regenAbortRef.current?.abort();
     const controller = new AbortController();
     regenAbortRef.current = controller;
     setRegenerating(true);
     try {
-      const updated = await regenerateRfiPdfDraft(documentId, {});
+      const updated = await regenerateRfiPdfDraft(documentId, { model });
       projectRef.current = updated;
       setProject(updated);
       toast.success("Regeneration started. The draft will refresh shortly.");
@@ -724,6 +731,14 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
     : null;
 
   return (
+    <>
+    <ModelSelectionDialog
+      modelSelection={modelSelection}
+      title="Regenerate Draft — Select Model"
+      description="Choose the Ollama model to regenerate the RFI PDF response draft."
+      confirmLabel="Regenerate"
+      onConfirm={executeRegenerate}
+    />
     <div
       className={cn(
         "flex h-full min-h-0 gap-3",
@@ -1126,9 +1141,10 @@ export function RFIPdfEditor({ documentId }: RFIPdfEditorProps) {
             )}
           </div>
         </SheetContent>
-      </Sheet>
-    </div>
-  );
+       </Sheet>
+     </div>
+     </>
+   );
 }
 
 interface PdfPreviewModalProps {
@@ -1256,12 +1272,12 @@ function PdfPreviewModal({
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               <Loader2 className="mr-2 size-4 animate-spin" /> Rendering
               preview…
-            </div>
-          )}
-        </div>
+             </div>
+           )}
+         </div>
+       </div>
       </div>
-    </div>
-  );
+   );
 }
 
 function Banner({

@@ -102,6 +102,7 @@ export async function queueRfpBackgroundGeneration(
     adjust?: boolean;
     content?: string;
     additionalContext?: string;
+    model?: string;
   },
 ): Promise<RFPProjectResponse> {
   const { data } = await apiClient.post<RFPProjectResponse>(

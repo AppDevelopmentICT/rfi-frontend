@@ -13,6 +13,7 @@ export interface UploadDocumentResponse {
 export interface GenerateAllRequest {
   documentId: string;
   questions: Question[];
+  model?: string;
 }
 
 export interface GenerateResult {
@@ -29,6 +30,7 @@ export interface RegenerateRequest {
   documentId: string;
   questionId: string;
   prompt?: string;
+  model?: string;
 }
 
 export interface RegenerateResponse {

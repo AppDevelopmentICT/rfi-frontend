@@ -217,6 +217,7 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
         projectName?: string;
         projectDescription?: string;
         additionalContext?: string;
+        model?: string;
       },
     ) => {
       sendPayload({ product, rfp: true, ...extras });
@@ -225,13 +226,14 @@ export function useRFPStream(options?: UseRFPStreamOptions) {
   );
 
   const adjust = useCallback(
-    (product: string, content: string, additionalContext: string) => {
+    (product: string, content: string, additionalContext: string, model?: string) => {
       sendPayload({
         product,
         rfp: true,
         adjust: true,
         content,
         additionalContext,
+        model,
       });
     },
     [sendPayload],
