@@ -19,6 +19,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
   ChevronDown,
+  RefreshCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -242,6 +243,7 @@ function RFPTechnicalEditorInner({
   const lastGenerationRef = useRef<LastGenerationRequest | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined);
   const modelSelection = useModelSelection();
+  const regenModelSelection = useModelSelection();
 
   // ---------------------------------------------------------------------------
   // Tiptap editor — initialized SYNCHRONOUSLY with the project's saved content.
@@ -613,6 +615,29 @@ function RFPTechnicalEditorInner({
     toast.success("Response copied");
   };
 
+  const handleRegenerate = useCallback(async (model: string) => {
+    const current = projectRef.current;
+    if (!current || !editor || stream.isStreaming) return;
+    const currentContent = editor.getText().trim();
+    if (!currentContent) {
+      toast.error("No content to regenerate. Generate first.");
+      return;
+    }
+    try {
+      const locked = await ensureLock();
+      lastGenerationRef.current = {
+        adjust: true,
+        content: currentContent,
+        additionalContext: "Regenerate the entire Bab 3 from scratch based on the product information.",
+      };
+      backgroundFallbackStartedRef.current = false;
+      setIsAdjusting(true);
+      stream.adjust(locked.product, currentContent, "Regenerate Bab 3 completely", model);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Could not start regeneration"));
+    }
+  }, [editor, ensureLock, stream]);
+
   const handlePrompt = () => {
     const userPrompt = prompt.trim();
     if (!project || !userPrompt || isBusy) return;
@@ -775,6 +800,13 @@ function RFPTechnicalEditorInner({
         toast.success(`Model set to ${model}`);
       }}
     />
+    <ModelSelectionDialog
+      modelSelection={regenModelSelection}
+      title="Regenerate — Select Model"
+      description="Choose the Ollama model to regenerate the RFP content."
+      confirmLabel="Regenerate"
+      onConfirm={handleRegenerate}
+    />
     <div
       className={cn(
         "flex h-full min-h-0 transition-all duration-300 ease-in-out",
@@ -821,6 +853,20 @@ function RFPTechnicalEditorInner({
               <Button variant="outline" size="sm" onClick={handleCopy}>
                 <Copy className="size-4" />
                 Copy
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => regenModelSelection.openDialog()}
+                disabled={isBusy || Boolean(project.is_locked_by_other)}
+                className="gap-1.5"
+              >
+                {stream.isStreaming ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCcw className="size-4" />
+                )}
+                Regenerate
               </Button>
               {!isEditing ? (
                 <Button
