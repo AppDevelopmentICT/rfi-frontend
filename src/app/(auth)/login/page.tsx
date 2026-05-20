@@ -131,7 +131,6 @@ export default function LoginPage() {
           ? (err.response.data as { error: { message: string } }).error.message
           : "Please check your email and password.";
       toast.error("Sign in failed", { description: msg });
-      pb.authStore.clear();
     } finally {
       setPwdBusy(false);
     }

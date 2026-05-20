@@ -14,6 +14,7 @@ let _401Handled = false;
 
 function _handle401() {
   if (_401Handled) return;
+  if (typeof window !== "undefined" && window.location.pathname === "/login") return;
   _401Handled = true;
   console.warn("[Auth] 401 received — clearing session and redirecting to login");
   pb.authStore.clear();
