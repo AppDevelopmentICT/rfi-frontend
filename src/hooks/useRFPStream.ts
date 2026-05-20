@@ -23,16 +23,16 @@ interface UseRFPStreamOptions {
 function resolveWsBase(): string {
   const explicit = process.env.NEXT_PUBLIC_WS_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || "http://127.0.0.1:8000/api";
-  if (/^https?:\/\//i.test(apiUrl)) {
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}`;
+  }
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (apiUrl && /^https?:\/\//i.test(apiUrl)) {
     return apiUrl
       .replace(/^http/i, (m) => (m.toLowerCase() === "https" ? "wss" : "ws"))
       .replace(/\/api\/?$/i, "")
       .replace(/\/$/, "");
-  }
-  if (typeof window !== "undefined") {
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${window.location.host}`;
   }
   return "ws://127.0.0.1:8000";
 }

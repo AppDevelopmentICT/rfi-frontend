@@ -59,11 +59,27 @@ export function Header() {
   const [isMac] = useState(isMacOS);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const handleOpenChange = (nextOpen: boolean | ((prev: boolean) => boolean)) => {
+    setOpen((prev) => {
+      const next = typeof nextOpen === "function" ? nextOpen(prev) : nextOpen;
+      if (!next) {
+        setQuery("");
+        setSelectedValue("");
+      }
+      return next;
+    });
+  };
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setSelectedValue(value.trim() ? `search:${value.trim()}` : "");
+  };
+
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (event.key?.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
-        setOpen((value) => !value);
+        handleOpenChange((value) => !value);
       }
     };
     document.addEventListener("keydown", down);
@@ -74,32 +90,12 @@ export function Header() {
   // `autoFocus` alone is insufficient because the modal stays mounted
   // (only opacity/pointer-events toggle), so the input never re-mounts.
   useEffect(() => {
-    if (!open) {
-      // Reset query when closing so the next open starts clean.
-      setQuery("");
-      return;
-    }
-    // Use rAF to ensure the element is actually interactive after the
-    // pointer-events/opacity transition flips on.
+    if (!open) return;
     const raf = requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
     return () => cancelAnimationFrame(raf);
   }, [open]);
-
-  // ISSUE 3 FIX: When the user is typing, force the dynamic
-  // `search:<query>` item to be the selected (highlighted) item so that
-  // pressing Enter triggers the global search rather than the first
-  // static link. When the query is empty, let cmdk pick the default
-  // (first static item).
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed) {
-      setSelectedValue(`search:${trimmed}`);
-    } else {
-      setSelectedValue("");
-    }
-  }, [query]);
 
   const shortcutLabel = isMac ? "⌘" : "Ctrl";
   const isAdmin = !!user?.is_admin;
@@ -113,8 +109,7 @@ export function Header() {
   const groups = useMemo(() => ["Documents", "RFP Chapters", "Quick Actions"] as const, []);
 
   const runCommand = (href: string) => {
-    setOpen(false);
-    setQuery("");
+    handleOpenChange(false);
     router.push(href);
   };
 
@@ -160,7 +155,7 @@ export function Header() {
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setOpen(false);
+          if (event.target === event.currentTarget) handleOpenChange(false);
         }}
       >
         <CommandPrimitive
@@ -177,11 +172,11 @@ export function Header() {
             <CommandPrimitive.Input
               ref={inputRef}
               value={query}
-              onValueChange={setQuery}
+              onValueChange={handleQueryChange}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.preventDefault();
-                  setOpen(false);
+                  handleOpenChange(false);
                 }
               }}
               autoFocus
