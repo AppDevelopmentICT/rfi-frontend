@@ -128,6 +128,7 @@ interface LastGenerationRequest {
   adjust: boolean;
   content?: string;
   additionalContext?: string;
+  model?: string;
 }
 
 // =============================================================================
@@ -379,6 +380,7 @@ function RFPTechnicalEditorInner({
         adjust: last.adjust,
         content: last.content,
         additionalContext: last.additionalContext,
+        model: last.model,
       });
       projectRef.current = queued;
       setProject(queued);
@@ -629,6 +631,7 @@ function RFPTechnicalEditorInner({
         adjust: true,
         content: currentContent,
         additionalContext: "Regenerate the entire Bab 3 from scratch based on the product information.",
+        model,
       };
       backgroundFallbackStartedRef.current = false;
       setIsAdjusting(true);
@@ -654,12 +657,13 @@ function RFPTechnicalEditorInner({
         adjust: true,
         content: currentContent,
         additionalContext: userPrompt,
+        model,
       };
       backgroundFallbackStartedRef.current = false;
       setIsAdjusting(true);
       stream.adjust(product, currentContent, userPrompt, model);
     } else {
-      lastGenerationRef.current = { adjust: false };
+      lastGenerationRef.current = { adjust: false, model };
       backgroundFallbackStartedRef.current = false;
       setIsAdjusting(false);
       stream.generate(product, { model });
