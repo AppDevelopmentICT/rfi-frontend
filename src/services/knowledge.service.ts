@@ -99,7 +99,7 @@ export async function ingestKnowledgeDocument(
   const { data } = await apiClient.post<IngestDocumentResponse>(
     "/v1/knowledge/ingest",
     formData,
-    { headers: { "Content-Type": "multipart/form-data" }, timeout: 600_000 }
+    { headers: { "Content-Type": "multipart/form-data" }, timeout: 1_800_000 }
   );
   
   return data;
@@ -107,7 +107,7 @@ export async function ingestKnowledgeDocument(
 
 export async function syncKnowledgeBase(): Promise<SyncResult> {
   const { data } = await apiClient.post<SyncResult>("/v1/knowledge/sync", null, {
-    timeout: 600_000, // 10 min — sync downloads, parses, and embeds files
+    timeout: 1_800_000, // 30 min — sync downloads, parses, and embeds files
   });
   return data;
 }
