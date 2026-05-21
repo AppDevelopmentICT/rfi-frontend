@@ -15,11 +15,6 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-let _state: { tasks: Map<string, unknown>; nextRun: Map<string, unknown> };
-let _intervalId: ReturnType<typeof setInterval> | null;
-let _initialized: boolean;
-let _authExpired: boolean;
-
 async function importModule() {
   vi.resetModules();
   vi.doMock("@/lib/pocketbase", () => ({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -102,10 +103,13 @@ export function Sidebar() {
     >
       <div className="flex h-full w-64 flex-col">
         <div className="flex h-14 items-center gap-2.5 border-b border-border/50 px-5">
-          <img
+          <Image
             src="/assets/ICT-Logo.png"
             alt="ICT Logo"
+            width={32}
+            height={32}
             className="size-8 object-contain"
+            priority
           />
           <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
             RFI/RFP Platform
