@@ -56,6 +56,27 @@ export interface KBProduct {
   document_count: number;
 }
 
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function parsedMarkdownFilename(fileName: string): string {
+  const stem = fileName.includes(".") ? fileName.slice(0, fileName.lastIndexOf(".")) : fileName;
+  return `${stem}_parsed.md`;
+}
+
+export function downloadParsedMarkdown(markdown: string, fileName: string) {
+  downloadBlob(new Blob([markdown], { type: "text/markdown;charset=utf-8" }), parsedMarkdownFilename(fileName));
+}
+
 export async function ingestKnowledgeDocument(
   file: File,
   product: string
@@ -78,7 +99,7 @@ export async function ingestKnowledgeDocument(
   const { data } = await apiClient.post<IngestDocumentResponse>(
     "/v1/knowledge/ingest",
     formData,
-    { headers: { "Content-Type": "multipart/form-data" } }
+    { headers: { "Content-Type": "multipart/form-data" }, timeout: 600_000 }
   );
   
   return data;

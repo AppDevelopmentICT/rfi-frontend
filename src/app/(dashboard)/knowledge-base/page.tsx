@@ -29,6 +29,7 @@ import { FileUpload } from "@/components/shared/FileUpload";
 import { ProductCombobox } from "@/components/shared/ProductCombobox";
 import {
   ingestKnowledgeDocument,
+  downloadParsedMarkdown,
   syncKnowledgeBase,
   listKnowledgeDocuments,
   listKnowledgeProducts,
@@ -279,8 +280,11 @@ export default function KnowledgeBasePage() {
 
     for (const file of acceptedFiles) {
       try {
-        await ingestKnowledgeDocument(file, productName);
-        toast.success(`Vectorized ${file.name} successfully`);
+        const result = await ingestKnowledgeDocument(file, productName);
+        if (result.docling_markdown) {
+          downloadParsedMarkdown(result.docling_markdown, file.name);
+        }
+        toast.success(`Vectorized ${file.name} successfully and downloaded parsed markdown`);
       } catch (error: unknown) {
         toast.error(
           `Failed to ingest ${file.name}: ${getErrorMessage(error, "Unknown Error")}`
@@ -510,7 +514,7 @@ export default function KnowledgeBasePage() {
         {isUploading && (
           <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground animate-pulse font-medium">
             <RefreshCw className="size-3.5 animate-spin" />
-            Vectorizing documents...
+            Vectorizing documents and preparing parsed downloads...
           </div>
         )}
       </section>
