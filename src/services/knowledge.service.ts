@@ -158,3 +158,29 @@ export async function bulkDeleteKnowledgeDocuments(
   return data;
 }
 
+export interface ConfigResponse {
+  rag_development_mode: boolean;
+}
+
+export async function getKnowledgeConfig(): Promise<ConfigResponse> {
+  const { data } = await apiClient.get<ConfigResponse>("/v1/knowledge/config");
+  return data;
+}
+
+export async function downloadDocumentParsed(documentId: number, filename: string): Promise<void> {
+  const { data } = await apiClient.get(`/v1/knowledge/documents/${documentId}/download-parsed`, {
+    responseType: "blob",
+    timeout: 30_000,
+  });
+  downloadBlob(data, parsedMarkdownFilename(filename));
+}
+
+export async function downloadDocumentChunks(documentId: number, filename: string): Promise<void> {
+  const stem = filename.includes(".") ? filename.slice(0, filename.lastIndexOf(".")) : filename;
+  const { data } = await apiClient.get(`/v1/knowledge/documents/${documentId}/download-chunks`, {
+    responseType: "blob",
+    timeout: 30_000,
+  });
+  downloadBlob(data, `${stem}_chunks.md`);
+}
+

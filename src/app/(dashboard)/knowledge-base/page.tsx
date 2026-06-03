@@ -29,12 +29,14 @@ import { FileUpload } from "@/components/shared/FileUpload";
 import { ProductCombobox } from "@/components/shared/ProductCombobox";
 import {
   ingestKnowledgeDocument,
-  downloadParsedMarkdown,
   syncKnowledgeBase,
   listKnowledgeDocuments,
   listKnowledgeProducts,
   deleteKnowledgeDocument,
   bulkDeleteKnowledgeDocuments,
+  getKnowledgeConfig,
+  downloadDocumentParsed,
+  downloadDocumentChunks,
 } from "@/services/knowledge.service";
 import type { KBDocument, KBProduct, SyncResult } from "@/services/knowledge.service";
 import { useStaleData } from "@/hooks/useStaleData";
@@ -178,6 +180,7 @@ export default function KnowledgeBasePage() {
   const [bulkAlertOpen, setBulkAlertOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [products, setProducts] = useState<KBProduct[]>([]);
+  const [isDevMode, setIsDevMode] = useState(false);
   const PER_PAGE = 10;
 
   const fetchKey = `kb-docs-${debouncedSearch}-${productFilter}-${sortKey}-${sortDir}-${page}`;
@@ -244,6 +247,12 @@ export default function KnowledgeBasePage() {
   }, []);
 
   useEffect(() => {
+    getKnowledgeConfig()
+      .then((cfg) => setIsDevMode(cfg.rag_development_mode))
+      .catch(() => setIsDevMode(false));
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
       setPage(1);
@@ -280,11 +289,8 @@ export default function KnowledgeBasePage() {
 
     for (const file of acceptedFiles) {
       try {
-        const result = await ingestKnowledgeDocument(file, productName);
-        if (result.docling_markdown) {
-          downloadParsedMarkdown(result.docling_markdown, file.name);
-        }
-        toast.success(`Vectorized ${file.name} successfully and downloaded parsed markdown`);
+        await ingestKnowledgeDocument(file, productName);
+        toast.success(`Vectorized ${file.name} successfully`);
       } catch (error: unknown) {
         toast.error(
           `Failed to ingest ${file.name}: ${getErrorMessage(error, "Unknown Error")}`
@@ -514,7 +520,7 @@ export default function KnowledgeBasePage() {
         {isUploading && (
           <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground animate-pulse font-medium">
             <RefreshCw className="size-3.5 animate-spin" />
-            Vectorizing documents and preparing parsed downloads...
+            Vectorizing documents...
           </div>
         )}
       </section>
@@ -760,44 +766,82 @@ export default function KnowledgeBasePage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right pr-4">
-                        {pendingDelete?.id === doc.id ? (
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDelete(doc)}
-                              disabled={isDeleting}
-                              className="h-7 text-xs gap-1.5"
-                            >
-                              {isDeleting && (
-                                <span className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              )}
-                              {isDeleting ? "Deleting..." : "Confirm"}
-                            </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          {isDevMode && doc.status === "completed" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={async () => {
+                                  try {
+                                    await downloadDocumentParsed(doc.id, doc.filename);
+                                  } catch (e: unknown) {
+                                    toast.error(`Failed to download parsed MD: ${getErrorMessage(e)}`);
+                                  }
+                                }}
+                                className="text-muted-foreground hover:text-blue-600"
+                                title="Download Parsed Markdown"
+                              >
+                                <FileText className="size-3.5" />
+                                <span className="sr-only">Download parsed {doc.filename}</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={async () => {
+                                  try {
+                                    await downloadDocumentChunks(doc.id, doc.filename);
+                                  } catch (e: unknown) {
+                                    toast.error(`Failed to download chunks MD: ${getErrorMessage(e)}`);
+                                  }
+                                }}
+                                className="text-muted-foreground hover:text-amber-600"
+                                title="Download Chunked Layout"
+                              >
+                                <Database className="size-3.5" />
+                                <span className="sr-only">Download chunks {doc.filename}</span>
+                              </Button>
+                            </>
+                          )}
+                          {pendingDelete?.id === doc.id ? (
+                            <>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(doc)}
+                                disabled={isDeleting}
+                                className="h-7 text-xs gap-1.5"
+                              >
+                                {isDeleting && (
+                                  <span className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                )}
+                                {isDeleting ? "Deleting..." : "Confirm"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPendingDelete(null)}
+                                disabled={isDeleting}
+                                className="h-7 text-xs"
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
                             <Button
                               variant="ghost"
-                              size="sm"
-                              onClick={() => setPendingDelete(null)}
+                              size="icon-sm"
+                              onClick={() => setPendingDelete(doc)}
                               disabled={isDeleting}
-                              className="h-7 text-xs"
+                              className="text-muted-foreground hover:text-destructive"
                             >
-                              Cancel
+                              <Trash2 className="size-3.5" />
+                              <span className="sr-only">
+                                Delete {doc.filename}
+                              </span>
                             </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => setPendingDelete(doc)}
-                            disabled={isDeleting}
-                            className="text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="size-3.5" />
-                            <span className="sr-only">
-                              Delete {doc.filename}
-                            </span>
-                          </Button>
-                        )}
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
