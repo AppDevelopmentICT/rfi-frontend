@@ -10,11 +10,11 @@ export default function RfiViewerPage() {
   const router = useRouter();
   const documentId = useRFIStore((s) => s.documentId);
   const file = useRFIStore((s) => s.file);
-  const fileBase64 = useRFIStore((s) => s.fileBase64);
+  const fileObjectUrl = useRFIStore((s) => s.fileObjectUrl);
   const fileName = useRFIStore((s) => s.fileName);
   const excelData = useExcelStore((s) => s.excelData);
 
-  const hasSession = !!(file || fileBase64) && !!(fileName);
+  const hasSession = !!(file || fileObjectUrl) && !!(fileName);
   const hasData = !!excelData;
 
   useEffect(() => {

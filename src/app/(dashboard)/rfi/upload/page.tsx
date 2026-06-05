@@ -31,10 +31,12 @@ export default function UploadRfiPage() {
   const resetExcelStore = useExcelStore((s) => s.reset);
   
   const savedFileName = useRFIStore((s) => s.fileName);
-  const savedFileBase64 = useRFIStore((s) => s.fileBase64);
+  const documentId = useRFIStore((s) => s.documentId);
 
   // Strict Approach 1: a single source of truth for the conditional render.
-  const hasLocalDraft = Boolean(savedFileName && savedFileBase64);
+  // fileObjectUrl is ephemeral (invalid after refresh), so we also check
+  // documentId which is persisted.
+  const hasLocalDraft = Boolean(savedFileName && documentId);
 
   const handleDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -46,20 +48,15 @@ export default function UploadRfiPage() {
     if (!selectedFile) return;
     setIsOpening(true);
     
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      mutate(selectedFile, {
-        onSuccess: (data) => {
-          setDocumentInfo(data.documentId, selectedFile, base64);
-          useRFIStore.setState({ fileName: data.fileName });
-          setExcelData(data.excelData);
-          router.push(`/rfi/viewer`);
-        },
-        onSettled: () => setIsOpening(false),
-      });
-    };
-    reader.readAsDataURL(selectedFile);
+    mutate(selectedFile, {
+      onSuccess: (data) => {
+        setDocumentInfo(data.documentId, selectedFile);
+        useRFIStore.setState({ fileName: data.fileName });
+        setExcelData(data.excelData);
+        router.push(`/rfi/viewer`);
+      },
+      onSettled: () => setIsOpening(false),
+    });
   };
 
   const handleClear = () => {

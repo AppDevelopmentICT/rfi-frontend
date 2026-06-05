@@ -47,7 +47,7 @@ export function RFIEditor({
 }: RFIEditorProps) {
   const router = useRouter();
   const file = useRFIStore((s) => s.file);
-  const fileBase64 = useRFIStore((s) => s.fileBase64);
+  const fileObjectUrl = useRFIStore((s) => s.fileObjectUrl);
   const fileName = useRFIStore((s) => s.fileName);
   const setExcelData = useExcelStore((s) => s.setExcelData);
   const activeJobs = useRFIStore((s) => s.activeJobs);
@@ -87,13 +87,13 @@ export function RFIEditor({
   const handleAutoFillExcel = useCallback(async (model?: string) => {
     let uploadFile = file;
     
-    if (!uploadFile && fileBase64 && fileName) {
+    if (!uploadFile && fileObjectUrl && fileName) {
       try {
-        const res = await fetch(fileBase64);
+        const res = await fetch(fileObjectUrl);
         const blob = await res.blob();
         uploadFile = new File([blob], fileName, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       } catch {
-        console.error("Failed to reconstruct file from base64");
+        console.error("Failed to reconstruct file from object URL");
       }
     }
 
@@ -117,7 +117,7 @@ export function RFIEditor({
         }
       }
     );
-  }, [file, fileBase64, fileName, mutate, router, setExcelData]);
+  }, [file, fileObjectUrl, fileName, mutate, router, setExcelData]);
 
   const handleSave = useCallback(async () => {
     if (!onSaveChanges) return;
@@ -361,7 +361,7 @@ export function RFIEditor({
               <p className="mt-1 text-slate-500">Other users cannot edit it until you click Save Changes or Cancel.</p>
             </div>
           )}
-          {(!isCompleted && !isGenerating && !file && !fileBase64) && (
+          {(!isCompleted && !isGenerating && !file && !fileObjectUrl) && (
             <div className="rounded-lg border bg-background p-6 shadow-sm mb-6 m-6">
               <h2 className="text-base font-semibold">Ready to generate Excel response</h2>
               <p className="mt-2 text-sm text-muted-foreground">
