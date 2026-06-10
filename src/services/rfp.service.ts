@@ -55,9 +55,13 @@ export async function getRfpProject(projectKey: string): Promise<RFPProjectRespo
   return data;
 }
 
-export async function listRfpProjects(): Promise<RFPProjectResponse[]> {
-  const { data } = await apiClient.get<RFPProjectResponse[]>("/v1/rfp/list");
+export async function listRfpProjects(params?: { include_deleted?: boolean }): Promise<RFPProjectResponse[]> {
+  const { data } = await apiClient.get<RFPProjectResponse[]>("/v1/rfp/list", { params });
   return data;
+}
+
+export async function restoreRfpProject(projectKey: string): Promise<void> {
+  await apiClient.post(`/v1/rfp/projects/${projectKey}/restore`);
 }
 
 export async function listMyRfpProjects(): Promise<RFPProjectResponse[]> {

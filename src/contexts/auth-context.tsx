@@ -19,6 +19,7 @@ import type { RecordModel } from "pocketbase";
 
 type AuthModel = RecordModel & {
   is_admin?: boolean;
+  sql_id?: number;
 };
 
 type AuthContextValue = {
@@ -56,9 +57,10 @@ export function PocketBaseAuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data } = await apiClient.get<{ is_admin: boolean }>("/v1/auth/me");
+      const { data } = await apiClient.get<{ id: number; is_admin: boolean }>("/v1/auth/me");
       setUser({
         ...(pb.authStore.record as AuthModel),
+        sql_id: data.id,
         is_admin: data.is_admin,
       });
     } catch {

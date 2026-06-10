@@ -64,9 +64,13 @@ export async function getRfiDocument(documentId: string): Promise<RFIProjectResp
   return data;
 }
 
-export async function listRfiDocuments(): Promise<RFIProjectResponse[]> {
-  const { data } = await apiClient.get<RFIProjectResponse[]>("/v1/rfi/list");
+export async function listRfiDocuments(params?: { include_deleted?: boolean }): Promise<RFIProjectResponse[]> {
+  const { data } = await apiClient.get<RFIProjectResponse[]>("/v1/rfi/list", { params });
   return data;
+}
+
+export async function restoreRfiDocument(documentId: string): Promise<void> {
+  await apiClient.post(`/v1/rfi/${documentId}/restore`);
 }
 
 export async function listMyRfiDocuments(): Promise<RFIProjectResponse[]> {
