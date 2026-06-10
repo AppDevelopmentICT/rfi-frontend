@@ -21,8 +21,13 @@ interface UseRFPStreamOptions {
 }
 
 function resolveWsBase(): string {
-  const explicit = process.env.NEXT_PUBLIC_WS_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, "");
+  let explicit = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  if (explicit) {
+    if (typeof window !== "undefined" && window.location.protocol === "http:") {
+      explicit = explicit.replace(/^wss:/i, "ws:");
+    }
+    return explicit.replace(/\/$/, "");
+  }
   if (typeof window !== "undefined") {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${window.location.host}`;

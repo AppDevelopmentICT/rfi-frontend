@@ -141,8 +141,13 @@ export function buildRfiPdfDraftStreamUrl(documentId: string, token: string): st
   const q = encodeURIComponent(token);
   const path = `/v1/rfi-pdf/ws/draft-stream/${encodeURIComponent(documentId)}?token=${q}`;
 
-  const explicit = process.env.NEXT_PUBLIC_WS_URL?.trim();
-  if (explicit) return `${explicit.replace(/\/$/, "")}/api${path}`;
+  let explicit = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  if (explicit) {
+    if (typeof window !== "undefined" && window.location.protocol === "http:") {
+      explicit = explicit.replace(/^wss:/i, "ws:");
+    }
+    return `${explicit.replace(/\/$/, "")}/api${path}`;
+  }
 
   if (typeof window !== "undefined") {
     const { protocol, host } = window.location;
