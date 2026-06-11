@@ -74,6 +74,152 @@ const STATUS_CLASSES: Record<string, string> = {
     "border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300",
 };
 
+type UploadFileStatus = "pending" | "processing" | "success" | "failed";
+
+interface UploadFileEntry {
+  name: string;
+  status: UploadFileStatus;
+  error?: string;
+}
+
+function UploadFileIcon({ status }: { status: UploadFileStatus }) {
+  switch (status) {
+    case "pending":
+      return (
+        <span className="flex size-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+          <FileText className="size-3 text-slate-400" />
+        </span>
+      );
+    case "processing":
+      return (
+        <span className="flex size-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40">
+          <Loader2 className="size-3 text-blue-600 dark:text-blue-400 animate-spin" />
+        </span>
+      );
+    case "success":
+      return (
+        <span className="flex size-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+          <CheckCircle2 className="size-3 text-emerald-600 dark:text-emerald-400" />
+        </span>
+      );
+    case "failed":
+      return (
+        <span className="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
+          <XCircle className="size-3 text-red-600 dark:text-red-400" />
+        </span>
+      );
+  }
+}
+
+function UploadProgressCard({
+  files,
+  onDismiss,
+}: {
+  files: UploadFileEntry[];
+  onDismiss?: () => void;
+}) {
+  const total = files.length;
+  const completed = files.filter((f) => f.status === "success" || f.status === "failed").length;
+  const failed = files.filter((f) => f.status === "failed").length;
+  const isAllDone = completed === total;
+  const progress = total > 0 ? (completed / total) * 100 : 0;
+
+  return (
+    <div className="rounded-xl border bg-card shadow-lg animate-in fade-in slide-in-from-top-3 duration-300 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          {!isAllDone ? (
+            <span className="relative flex size-5 items-center justify-center">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-blue-400/30" />
+              <Loader2 className="size-4 text-blue-600 dark:text-blue-400 animate-spin" />
+            </span>
+          ) : failed > 0 ? (
+            <AlertCircle className="size-4 text-amber-600 dark:text-amber-400" />
+          ) : (
+            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+          )}
+          <span className="text-sm font-semibold">
+            {!isAllDone
+              ? `Processing documents\u2026 (${completed}/${total})`
+              : failed > 0
+                ? `Completed with ${failed} error${failed > 1 ? "s" : ""}`
+                : "All documents processed successfully"}
+          </span>
+        </div>
+        {isAllDone && onDismiss && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onDismiss}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3.5" />
+          </Button>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1 w-full bg-muted/50">
+        <div
+          className={cn(
+            "h-full transition-all duration-500 ease-out",
+            isAllDone && failed === 0
+              ? "bg-emerald-500"
+              : isAllDone && failed > 0
+                ? "bg-amber-500"
+                : "bg-blue-500"
+          )}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* File list */}
+      <div className="divide-y divide-border/50 max-h-60 overflow-y-auto">
+        {files.map((file, idx) => (
+          <div
+            key={idx}
+            className={cn(
+              "flex items-center gap-3 px-4 py-2.5 transition-colors duration-200",
+              file.status === "processing" && "bg-blue-50/30 dark:bg-blue-950/10",
+              file.status === "success" && "bg-emerald-50/20 dark:bg-emerald-950/5",
+              file.status === "failed" && "bg-red-50/20 dark:bg-red-950/5"
+            )}
+          >
+            <UploadFileIcon status={file.status} />
+            <div className="min-w-0 flex-1">
+              <p className={cn(
+                "text-sm truncate font-medium",
+                file.status === "pending" && "text-muted-foreground",
+                file.status === "processing" && "text-blue-700 dark:text-blue-300",
+                file.status === "success" && "text-emerald-700 dark:text-emerald-300",
+                file.status === "failed" && "text-red-700 dark:text-red-300"
+              )}>
+                {file.name}
+              </p>
+              {file.error && (
+                <p className="text-xs text-red-500 truncate mt-0.5">{file.error}</p>
+              )}
+            </div>
+            <span className={cn(
+              "text-[10px] font-semibold uppercase tracking-wider",
+              file.status === "pending" && "text-slate-400",
+              file.status === "processing" && "text-blue-500",
+              file.status === "success" && "text-emerald-500",
+              file.status === "failed" && "text-red-500"
+            )}>
+              {file.status === "pending" && "Waiting"}
+              {file.status === "processing" && "Vectorizing"}
+              {file.status === "success" && "Done"}
+              {file.status === "failed" && "Failed"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type SortKey = "filename" | "status" | "source" | "created_at";
 type SortDir = "asc" | "desc";
 
@@ -164,6 +310,8 @@ function SortableHeader({
 
 export default function KnowledgeBasePage() {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadFiles, setUploadFiles] = useState<UploadFileEntry[]>([]);
+  const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
   const [pendingDelete, setPendingDelete] = useState<KBDocument | null>(null);
@@ -277,6 +425,23 @@ export default function KnowledgeBasePage() {
     loadProducts();
   }, [loadProducts]);
 
+  // Poll for status updates if any document in the visible list is processing
+  const hasProcessingDocs = useMemo(
+    () => documents.some((doc) => doc.status === "processing"),
+    [documents]
+  );
+
+  useEffect(() => {
+    if (!hasProcessingDocs) return;
+
+    const interval = setInterval(() => {
+      refetchDocs();
+      loadProducts();
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [hasProcessingDocs, refetchDocs, loadProducts]);
+
   const handleDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     const productName = uploadProduct.trim();
@@ -285,15 +450,39 @@ export default function KnowledgeBasePage() {
       return;
     }
 
+    // Initialize per-file tracking
+    const entries: UploadFileEntry[] = acceptedFiles.map((f) => ({
+      name: f.name,
+      status: "pending" as UploadFileStatus,
+    }));
+    setUploadFiles(entries);
+    setShowUploadProgress(true);
     setIsUploading(true);
 
-    for (const file of acceptedFiles) {
+    for (let i = 0; i < acceptedFiles.length; i++) {
+      const file = acceptedFiles[i];
+      // Mark current file as processing
+      setUploadFiles((prev) =>
+        prev.map((entry, idx) =>
+          idx === i ? { ...entry, status: "processing" } : entry
+        )
+      );
+
       try {
         await ingestKnowledgeDocument(file, productName);
-        toast.success(`Vectorized ${file.name} successfully`);
+        // Mark success
+        setUploadFiles((prev) =>
+          prev.map((entry, idx) =>
+            idx === i ? { ...entry, status: "success" } : entry
+          )
+        );
       } catch (error: unknown) {
-        toast.error(
-          `Failed to ingest ${file.name}: ${getErrorMessage(error, "Unknown Error")}`
+        const msg = getErrorMessage(error, "Unknown Error");
+        // Mark failed
+        setUploadFiles((prev) =>
+          prev.map((entry, idx) =>
+            idx === i ? { ...entry, status: "failed", error: msg } : entry
+          )
         );
       }
     }
@@ -516,12 +705,20 @@ export default function KnowledgeBasePage() {
           }}
           title="Drag & drop files here, or click to browse"
           description="PDF, DOCX, TXT, or MD — up to 10 MB per file"
+          disabled={isUploading}
         />
-        {isUploading && (
-          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground animate-pulse font-medium">
-            <RefreshCw className="size-3.5 animate-spin" />
-            Vectorizing documents...
-          </div>
+        {showUploadProgress && uploadFiles.length > 0 && (
+          <UploadProgressCard
+            files={uploadFiles}
+            onDismiss={
+              !isUploading
+                ? () => {
+                    setShowUploadProgress(false);
+                    setUploadFiles([]);
+                  }
+                : undefined
+            }
+          />
         )}
       </section>
 
