@@ -31,6 +31,10 @@ import TextAlign from "@tiptap/extension-text-align";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import CharacterCount from "@tiptap/extension-character-count";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
 
 import { TipTapToolbar } from "./TipTapToolbar";
 
@@ -283,6 +287,13 @@ function RFPTechnicalEditorInner({
       CharacterCount.configure({
         limit: 50000,
       }),
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: { class: "border-collapse border border-border w-full my-4" },
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     editable: true,
     editorProps: {
